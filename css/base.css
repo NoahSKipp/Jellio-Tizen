@@ -1,0 +1,203 @@
+:root {
+  --jellio-bg: #0d0d0d;
+  --jellio-bg-rgb: 13 13 13;
+  --jellio-bg-elevated: #1a1a1a;
+  --jellio-bg-elevated-rgb: 26 26 26;
+  --jellio-card-bg: #222222;
+  --jellio-card-bg-rgb: 34 34 34;
+  --jellio-secondary: #f5f5f5;
+  --jellio-secondary-variant: #e0e0e0;
+  --jellio-text: #ffffff;
+  --jellio-text-secondary: #b3b3b3;
+  --jellio-text-tertiary: #808080;
+  --jellio-border: #333333;
+  --jellio-danger: #ff6b81;
+  --jellio-danger-focused: #c62840;
+
+  --jellio-rarity-common: #8a90a0;
+  --jellio-rarity-rare: #5b9df0;
+  --jellio-rarity-epic: #b57bf2;
+  --jellio-rarity-legendary: #ff9800;
+
+  --jellio-trending: #ff9800;
+  --jellio-season-accent: var(--jellio-trending);
+
+  --jellio-overscan-x: 0px;
+  --jellio-overscan-y: 0px;
+  --jellio-ui-scale: 1;
+
+  --jellio-font-family: 'TizenSans', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --jellio-sidebar-width-collapsed: 88px;
+  --jellio-sidebar-width-expanded: 260px;
+  --jellio-ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --jellio-ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+html,
+body {
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  background-color: #000000;
+  color: var(--jellio-text);
+  font-family: var(--jellio-font-family);
+  font-size: 16px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+.jellio-body {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  background: #000000;
+}
+
+.jellio-overscan-frame {
+  position: absolute;
+  top: var(--jellio-overscan-y);
+  bottom: var(--jellio-overscan-y);
+  left: var(--jellio-overscan-x);
+  right: var(--jellio-overscan-x);
+  background: var(--jellio-bg);
+  overflow: hidden;
+}
+
+.jellio-seasonal-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.jellio-app-root {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  overflow: hidden;
+}
+
+.jellio-overlay-root {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.jellio-overlay-root > * {
+  pointer-events: auto;
+}
+
+.jellio-toast-root {
+  position: absolute;
+  top: 36px;
+  right: 48px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.jellio-player-mount {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: #000000;
+  display: none;
+}
+
+.jellio-player-mount.jellio-player-active {
+  display: block;
+}
+
+.jellio-avplayer,
+.jellio-html5-player {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: #000000;
+}
+
+/* 10-foot focus styling */
+[data-focusable="true"] {
+  outline: none;
+  cursor: pointer;
+  position: relative;
+  transition: transform 160ms var(--jellio-ease-out),
+              box-shadow 160ms var(--jellio-ease-out),
+              border-color 160ms var(--jellio-ease-out),
+              background-color 160ms var(--jellio-ease-out);
+  transform: scale(1);
+}
+
+.jellio-focused {
+  outline: none !important;
+  transform: scale(1.05) translateZ(0);
+  z-index: 10;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.65), 0 0 0 2.5px #ffffff;
+}
+
+/* Reduced motion accessibility */
+.jellio-reduce-motion *,
+.jellio-reduce-motion *::before,
+.jellio-reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  transform: none !important;
+}
+
+.jellio-reduce-motion .jellio-focused {
+  transform: none !important;
+  box-shadow: 0 0 0 3px #ffffff !important;
+}
+
+/* Common TV typography & icons */
+.jellio-title-hero {
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.jellio-title-section {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--jellio-text);
+  margin-bottom: 14px;
+}
+
+.jellio-text-muted {
+  color: var(--jellio-text-secondary);
+  font-size: 15px;
+}
+
+.jellio-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--jellio-secondary);
+}

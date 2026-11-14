@@ -1,0 +1,320 @@
+/* Main Screen Container */
+.jellio-screen {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--jellio-sidebar-width-collapsed);
+  right: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.jellio-screen-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 60px;
+}
+
+/* Horizontal Row Tracks */
+.jellio-row-container {
+  display: flex;
+  flex-direction: column;
+  margin-top: 24px;
+}
+
+.jellio-row-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin-left: 48px;
+  margin-bottom: 12px;
+  color: var(--jellio-text);
+}
+
+.jellio-row-track {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  padding: 8px 48px 16px;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: none;
+}
+
+.jellio-row-track::-webkit-scrollbar {
+  display: none;
+}
+
+/* LoginScreen */
+.jellio-login-screen {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 80px;
+  height: 100%;
+  padding: 48px;
+}
+
+.jellio-quickconnect-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--jellio-bg-elevated);
+  padding: 40px;
+  border-radius: 20px;
+  border: 1px solid var(--jellio-border);
+}
+
+.jellio-quickconnect-code {
+  font-size: 52px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  color: var(--jellio-trending);
+  margin: 20px 0;
+}
+
+.jellio-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 400px;
+}
+
+/* HomeScreen */
+.jellio-hero-banner {
+  position: relative;
+  width: 100%;
+  height: 480px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 48px;
+  margin-bottom: 12px;
+}
+
+.jellio-hero-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+.jellio-hero-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(13, 13, 13, 0.2) 0%, rgba(13, 13, 13, 0.95) 85%, var(--jellio-bg) 100%),
+              linear-gradient(90deg, rgba(13, 13, 13, 0.95) 0%, rgba(13, 13, 13, 0.4) 60%, transparent 100%);
+  z-index: 2;
+}
+
+.jellio-hero-content {
+  position: relative;
+  z-index: 3;
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.jellio-hero-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.jellio-btn {
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  border: none;
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--jellio-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.jellio-btn-primary {
+  background: var(--jellio-secondary);
+  color: #111111;
+}
+
+.jellio-btn.jellio-focused {
+  background: #ffffff;
+  color: #111111;
+  transform: scale(1.05);
+}
+
+.jellio-home-edit-controls {
+  display: flex;
+  gap: 8px;
+  margin-left: 48px;
+}
+
+/* DetailScreen */
+.jellio-detail-screen {
+  position: relative;
+}
+
+.jellio-media-tech-badges-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.jellio-tech-badge {
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--jellio-text-secondary);
+}
+
+/* PersonScreen */
+.jellio-person-header {
+  display: flex;
+  gap: 36px;
+  padding: 48px;
+}
+
+.jellio-person-portrait {
+  width: 220px;
+  height: 330px;
+  border-radius: 16px;
+  object-fit: cover;
+  border: 2px solid var(--jellio-border);
+}
+
+.jellio-person-bio {
+  flex: 1;
+  font-size: 16px;
+  color: var(--jellio-text-secondary);
+  line-height: 1.6;
+}
+
+/* LibraryScreen */
+.jellio-library-filter-bar {
+  display: flex;
+  gap: 10px;
+  padding: 24px 48px;
+}
+
+.jellio-filter-pill {
+  padding: 8px 18px;
+  border-radius: 20px;
+  background: var(--jellio-bg-elevated);
+  border: 1px solid var(--jellio-border);
+  color: var(--jellio-text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.jellio-filter-pill.jellio-focused {
+  background: #ffffff;
+  color: var(--jellio-bg);
+}
+
+.jellio-poster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 20px;
+  padding: 12px 48px 48px;
+}
+
+/* SearchScreen */
+.jellio-search-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 36px 48px;
+  gap: 24px;
+}
+
+.jellio-search-input-box {
+  width: 600px;
+  height: 52px;
+  background: var(--jellio-bg-elevated);
+  border: 1px solid var(--jellio-border);
+  border-radius: 14px;
+  padding: 0 20px;
+  color: var(--jellio-text);
+  font-size: 20px;
+}
+
+.jellio-onscreen-keyboard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jellio-keyboard-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.jellio-key-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background: var(--jellio-bg-elevated);
+  border: 1px solid var(--jellio-border);
+  color: var(--jellio-text);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.jellio-key-btn.jellio-focused {
+  background: #ffffff;
+  color: var(--jellio-bg);
+}
+
+/* SettingsScreen: Two Pane TV Layout */
+.jellio-settings-layout {
+  display: flex;
+  height: 100%;
+}
+
+.jellio-settings-sidebar {
+  width: 340px;
+  border-right: 1px solid var(--jellio-border);
+  padding: 36px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jellio-settings-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--jellio-text-secondary);
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
+.jellio-settings-nav-item.jellio-focused {
+  background: #ffffff;
+  color: var(--jellio-bg);
+}
+
+.jellio-settings-pane {
+  flex: 1;
+  padding: 48px 60px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}

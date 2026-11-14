@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.wgt
+.DS_Store
+.tizen/
+coverage/

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1920, height=1080, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Jellio</title>
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/nav.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/screens.css">
+  <link rel="stylesheet" href="css/player.css">
+  <script src="$WEBAPIS/webapis/webapis.js" onerror="/* browser fallback */"></script>
+</head>
+<body class="jellio-body">
+  <div id="jellio-player-mount" class="jellio-player-mount" aria-hidden="true">
+    <object id="av-player" type="application/avplayer" class="jellio-avplayer" tabindex="-1"></object>
+    <video id="html5-player" class="jellio-html5-player" playsinline tabindex="-1"></video>
+  </div>
+
+  <div id="jellio-overscan-frame" class="jellio-overscan-frame">
+    <canvas id="jellio-seasonal-canvas" class="jellio-seasonal-canvas"></canvas>
+
+    <div id="jellio-app-root" class="jellio-app-root"></div>
+
+    <div id="jellio-overlay-root" class="jellio-overlay-root"></div>
+
+    <div id="jellio-toast-root" class="jellio-toast-root"></div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
