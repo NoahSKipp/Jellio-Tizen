@@ -51,3 +51,6 @@ export function showAnnouncement(announcement, durationMs = 8000) {
     setTimeout(() => toastEl.remove(), 250);
   }, durationMs);
 }
+
+export const showAnnouncementToast = showToast;
+

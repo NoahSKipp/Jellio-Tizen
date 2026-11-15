@@ -124,6 +124,8 @@ export function isBadSource(itemId, source) {
   });
 }
 
+export const isBadStream = isBadSource;
+
 const PLACEHOLDER_MIN_RUNTIME_SECONDS = 600;
 const PLACEHOLDER_MAX_FPS = 2;
 const PLACEHOLDER_MIN_SAMPLE_SECONDS = 3;

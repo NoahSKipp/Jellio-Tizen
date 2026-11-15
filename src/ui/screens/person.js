@@ -9,7 +9,8 @@ import {
   buildFallbackPersonDetails,
   filterCreditsForDepartment,
 } from '../../runtime/personProfile.js';
-import { focusFirstIn, focusElement } from '../../input/spatialNav.js';
+import { CardAspectRatio, renderPosterCard } from '../components/posterCard.js';
+import { focusFirstIn } from '../../input/spatialNav.js';
 
 export class PersonScreen {
   constructor(options = {}) {
@@ -19,16 +20,18 @@ export class PersonScreen {
     this.person = null;
     this.details = null;
     this.activeDepartment = 'Acting';
+    this.isDestroyed = false;
   }
 
   async render(container, personId = this.personId) {
+    this.isDestroyed = false;
     this.container = container;
     this.personId = personId;
     this.container.innerHTML = `
       <div class="jellio-screen" data-focus-group="person-screen">
-        <div class="jellio-screen-scroll" id="person-scroll-container">
-          <div class="jellio-person-header">
-            <img class="jellio-person-portrait" id="person-portrait" alt="Portrait" />
+        <div class="jellio-screen-scroll" id="person-scroll-container" style="padding-top: 24px;">
+          <div class="jellio-person-header" id="person-header-box">
+            <img class="jellio-person-portrait" id="person-portrait" alt="Portrait" onerror="this.style.display='none'" />
             <div style="flex: 1; display: flex; flex-direction: column; gap: 14px;">
               <h1 class="jellio-title-hero" id="person-name" style="font-size: 40px;">Loading...</h1>
               <div id="person-meta-chips" style="display: flex; gap: 8px; align-items: center; font-size: 13px;"></div>
@@ -42,7 +45,7 @@ export class PersonScreen {
           </div>
 
           <div id="person-department-section" class="jellio-row-container" style="display: none;">
-            <div style="display: flex; gap: 10px; margin-left: 48px; margin-bottom: 12px;" id="person-dept-tabs"></div>
+            <div style="display: flex; gap: 10px; margin-left: 52px; margin-bottom: 12px;" id="person-dept-tabs"></div>
             <div class="jellio-poster-grid" id="person-filmography-grid"></div>
           </div>
         </div>
@@ -56,6 +59,7 @@ export class PersonScreen {
     if (!this.personId) return;
     try {
       this.person = await getPerson(this.personId);
+      if (this.isDestroyed || !this.container) return;
       const name = this.person.Name || '';
 
       let tmdbData = null;
@@ -69,7 +73,7 @@ export class PersonScreen {
       let localFilmography = [];
       try {
         const searchRes = await searchItems(name, 50);
-        localFilmography = searchRes.Items || [];
+        localFilmography = Array.isArray(searchRes) ? searchRes : (searchRes && searchRes.Items) || [];
       } catch (_) {}
 
       if (tmdbData) {
@@ -89,6 +93,7 @@ export class PersonScreen {
   }
 
   renderHeader() {
+    if (!this.container) return;
     const portraitEl = this.container.querySelector('#person-portrait');
     const nameEl = this.container.querySelector('#person-name');
     const chipsEl = this.container.querySelector('#person-meta-chips');
@@ -117,50 +122,63 @@ export class PersonScreen {
     const rawBio = this.details.biography || this.person.Overview || '';
     const bioSegments = parseMarkdownBio(rawBio);
     if (bioSegments.length > 0) {
-      bioEl.innerHTML = bioSegments.map((s) => {
-        if (s.bold) return `<strong>${s.text}</strong>`;
-        if (s.italic) return `<em>${s.text}</em>`;
-        return s.text;
-      }).join('');
+      bioEl.innerHTML = bioSegments
+        .map((s) => {
+          if (s.bold) return `<strong>${s.text}</strong>`;
+          if (s.italic) return `<em>${s.text}</em>`;
+          return s.text;
+        })
+        .join('');
     } else {
       bioEl.textContent = 'No biography available.';
     }
   }
 
   renderKnownFor() {
+    if (!this.container) return;
     const section = this.container.querySelector('#person-known-for-section');
     const track = this.container.querySelector('#person-known-for-track');
+    const scrollContainer = this.container.querySelector('#person-scroll-container');
     const knownFor = this.details.knownFor || [];
 
     if (knownFor.length === 0) return;
     section.style.display = 'flex';
     track.innerHTML = '';
 
+    const seenKeys = new Set();
     knownFor.forEach((credit) => {
-      const card = document.createElement('div');
-      card.className = 'jellio-poster-card jellio-card-portrait';
-      card.setAttribute('data-focusable', 'true');
+      const key = String(credit.title || credit.id || '').toLowerCase().trim();
+      if (!key || seenKeys.has(key)) return;
+      seenKeys.add(key);
 
-      const imgUrl = credit.posterUrl || getImageUrl(credit.id, null, 'Primary', 300);
-      card.innerHTML = `
-        <img class="jellio-poster-card-img" src="${imgUrl}" alt="${credit.title}" loading="lazy" />
-        <div class="jellio-poster-card-overlay">
-          <div class="jellio-poster-card-title">${credit.title}</div>
-          <div class="jellio-poster-card-subtitle">${credit.year || credit.character || ''}</div>
-        </div>
-      `;
-
-      card.onclick = () => {
-        if (this.options.onNavigateToItem) {
-          this.options.onNavigateToItem(credit.id || credit.title);
-        }
+      const syntheticItem = {
+        Id: credit.id,
+        Name: credit.title,
+        ProductionYear: credit.year,
+        CommunityRating: credit.voteAverage,
       };
+      const imgUrl = credit.posterUrl || (credit.id ? getImageUrl(credit.id, null, 'Primary', 300) : '');
+      const card = renderPosterCard(syntheticItem, {
+        aspectRatio: CardAspectRatio.PORTRAIT,
+        imageUrl: imgUrl,
+        canExpand: false,
+        onSelect: () => {
+          if (this.options.onNavigateToItem) {
+            this.options.onNavigateToItem(credit.id || credit.title);
+          }
+        },
+        onFocus: () => {
+          // Ensure top header is never cut off when focusing Known For row
+          if (scrollContainer) scrollContainer.scrollTop = 0;
+        },
+      });
 
       track.appendChild(card);
     });
   }
 
   renderDepartmentFilmography() {
+    if (!this.container) return;
     const section = this.container.querySelector('#person-department-section');
     const tabsContainer = this.container.querySelector('#person-dept-tabs');
     const grid = this.container.querySelector('#person-filmography-grid');
@@ -171,14 +189,14 @@ export class PersonScreen {
 
     departments.forEach((dept) => {
       const tabBtn = document.createElement('button');
-      tabBtn.className = `jellio-filter-pill ${dept === this.activeDepartment ? 'jellio-focused' : ''}`;
+      tabBtn.className = `jellio-filter-pill ${dept === this.activeDepartment ? 'jellio-btn-primary' : ''}`;
       tabBtn.setAttribute('data-focusable', 'true');
       tabBtn.textContent = dept;
 
       tabBtn.onclick = () => {
         this.activeDepartment = dept;
-        Array.from(tabsContainer.children).forEach((c) => c.classList.remove('jellio-focused'));
-        tabBtn.classList.add('jellio-focused');
+        Array.from(tabsContainer.children).forEach((c) => c.classList.remove('jellio-btn-primary'));
+        tabBtn.classList.add('jellio-btn-primary');
         this.populateFilmographyGrid(dept, grid);
       };
 
@@ -192,32 +210,37 @@ export class PersonScreen {
     grid.innerHTML = '';
     const allCredits = this.details.allCredits || [];
     const filtered = filterCreditsForDepartment(dept, allCredits);
+    const seenKeys = new Set();
 
     filtered.forEach((credit) => {
-      const card = document.createElement('div');
-      card.className = 'jellio-poster-card jellio-card-portrait';
-      card.setAttribute('data-focusable', 'true');
+      const key = String(credit.title || credit.id || '').toLowerCase().trim();
+      if (!key || seenKeys.has(key)) return;
+      seenKeys.add(key);
 
-      const imgUrl = credit.posterUrl || getImageUrl(credit.id, null, 'Primary', 300);
-      card.innerHTML = `
-        <img class="jellio-poster-card-img" src="${imgUrl}" alt="${credit.title}" loading="lazy" />
-        <div class="jellio-poster-card-overlay">
-          <div class="jellio-poster-card-title">${credit.title}</div>
-          <div class="jellio-poster-card-subtitle">${credit.year || ''}</div>
-        </div>
-      `;
-
-      card.onclick = () => {
-        if (this.options.onNavigateToItem) {
-          this.options.onNavigateToItem(credit.id || credit.title);
-        }
+      const syntheticItem = {
+        Id: credit.id,
+        Name: credit.title,
+        ProductionYear: credit.year,
+        CommunityRating: credit.voteAverage,
       };
+      const imgUrl = credit.posterUrl || (credit.id ? getImageUrl(credit.id, null, 'Primary', 300) : '');
+      const card = renderPosterCard(syntheticItem, {
+        aspectRatio: CardAspectRatio.PORTRAIT,
+        imageUrl: imgUrl,
+        canExpand: false,
+        onSelect: () => {
+          if (this.options.onNavigateToItem) {
+            this.options.onNavigateToItem(credit.id || credit.title);
+          }
+        },
+      });
 
       grid.appendChild(card);
     });
   }
 
   destroy() {
+    this.isDestroyed = true;
     this.person = null;
     this.details = null;
   }

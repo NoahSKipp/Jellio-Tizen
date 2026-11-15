@@ -1,6 +1,9 @@
-// Search screen with on-screen TV D-pad keyboard and grouped instant search results.
-import { searchItems, getImageUrl } from '../../data/api.js';
-import { focusFirstIn, focusElement } from '../../input/spatialNav.js';
+// Search screen matching Jellio-TV SearchScreen.kt.
+// Features TV D-pad keyboard + direct physical input, filter pills (All, Movies, Series, People),
+// and instant grouped search results using renderPosterCard.
+import { searchItems, searchMovies, searchSeries, getImageUrl } from '../../data/api.js';
+import { CardAspectRatio, renderPosterCard } from '../components/posterCard.js';
+import { focusFirstIn } from '../../input/spatialNav.js';
 
 const KEYBOARD_ROWS = [
   ['A', 'B', 'C', 'D', 'E', 'F', '1', '2', '3'],
@@ -15,7 +18,9 @@ export class SearchScreen {
     this.options = options;
     this.container = null;
     this.query = '';
+    this.activeFilter = 'All';
     this.debounceTimer = null;
+    this.lastResults = { movies: [], series: [], people: [] };
   }
 
   render(container) {
@@ -24,8 +29,9 @@ export class SearchScreen {
       <div class="jellio-screen" data-focus-group="search-screen">
         <div class="jellio-screen-scroll" id="search-scroll-container">
           <div class="jellio-search-container">
-            <input type="text" class="jellio-search-input-box" id="search-input-display" placeholder="Search movies, series, people..." readonly />
+            <input type="text" class="jellio-search-input-box" id="search-input-display" data-focusable="true" placeholder="Search movies, shows, cast & crew..." />
             <div class="jellio-onscreen-keyboard" id="search-keyboard"></div>
+            <div id="search-filter-bar" style="display: flex; gap: 10px; margin-top: 8px;"></div>
           </div>
 
           <div id="search-results-container" style="display: none; padding-bottom: 48px;">
@@ -35,12 +41,12 @@ export class SearchScreen {
             </div>
 
             <div id="search-series-section" class="jellio-row-container" style="display: none;">
-              <h2 class="jellio-row-title">Series</h2>
+              <h2 class="jellio-row-title">Shows</h2>
               <div class="jellio-row-track" id="search-series-track"></div>
             </div>
 
             <div id="search-people-section" class="jellio-row-container" style="display: none;">
-              <h2 class="jellio-row-title">People</h2>
+              <h2 class="jellio-row-title">Cast & Crew</h2>
               <div class="jellio-row-track" id="search-people-track"></div>
             </div>
           </div>
@@ -48,8 +54,35 @@ export class SearchScreen {
       </div>
     `;
 
+    const inputEl = this.container.querySelector('#search-input-display');
+    inputEl.addEventListener('input', (e) => {
+      this.query = e.target.value;
+      this.triggerSearch();
+    });
+
     this.renderKeyboard();
+    this.renderFilterPills();
     focusFirstIn(this.container);
+  }
+
+  renderFilterPills() {
+    if (!this.container) return;
+    const bar = this.container.querySelector('#search-filter-bar');
+    if (!bar) return;
+    bar.innerHTML = '';
+
+    ['All', 'Movies', 'Shows', 'Cast & Crew'].forEach((filter) => {
+      const btn = document.createElement('button');
+      btn.className = `jellio-filter-pill ${filter === this.activeFilter ? 'jellio-btn-primary' : ''}`;
+      btn.setAttribute('data-focusable', 'true');
+      btn.textContent = filter;
+      btn.onclick = () => {
+        this.activeFilter = filter;
+        this.renderFilterPills();
+        this.displayResults(this.lastResults.movies, this.lastResults.series, this.lastResults.people);
+      };
+      bar.appendChild(btn);
+    });
   }
 
   renderKeyboard() {
@@ -87,7 +120,7 @@ export class SearchScreen {
     } else if (key === 'CLEAR') {
       this.query = '';
     } else {
-      this.query += key;
+      this.query += key.toLowerCase();
     }
 
     inputEl.value = this.query;
@@ -112,13 +145,18 @@ export class SearchScreen {
 
   async executeSearch(term) {
     try {
-      const res = await searchItems(term, 40);
-      const items = res.Items || [];
+      const [localRes, gelatoMovies, gelatoSeries] = await Promise.all([
+        searchItems(term, 40).catch(() => []),
+        searchMovies(term).catch(() => []),
+        searchSeries(term).catch(() => []),
+      ]);
 
-      const movies = items.filter((it) => it.Type === 'Movie');
-      const series = items.filter((it) => it.Type === 'Series');
+      const items = Array.isArray(localRes) ? localRes : (localRes && localRes.Items) || [];
+      const movies = [...items.filter((it) => it.Type === 'Movie'), ...(Array.isArray(gelatoMovies) ? gelatoMovies : [])];
+      const series = [...items.filter((it) => it.Type === 'Series'), ...(Array.isArray(gelatoSeries) ? gelatoSeries : [])];
       const people = items.filter((it) => it.Type === 'Person');
 
+      this.lastResults = { movies, series, people };
       this.displayResults(movies, series, people);
     } catch (err) {
       console.warn('SearchScreen: search failed', err);
@@ -126,6 +164,7 @@ export class SearchScreen {
   }
 
   displayResults(movies, series, people) {
+    if (!this.container) return;
     const resultsContainer = this.container.querySelector('#search-results-container');
     const moviesSection = this.container.querySelector('#search-movies-section');
     const moviesTrack = this.container.querySelector('#search-movies-track');
@@ -136,21 +175,25 @@ export class SearchScreen {
 
     resultsContainer.style.display = 'block';
 
-    this.populateTrack(moviesSection, moviesTrack, movies, (it) => {
+    const showMovies = this.activeFilter === 'All' || this.activeFilter === 'Movies';
+    const showSeries = this.activeFilter === 'All' || this.activeFilter === 'Shows';
+    const showPeople = this.activeFilter === 'All' || this.activeFilter === 'Cast & Crew';
+
+    this.populateTrack(moviesSection, moviesTrack, showMovies ? movies : [], (it) => {
       if (this.options.onItemSelect) this.options.onItemSelect(it);
     });
 
-    this.populateTrack(seriesSection, seriesTrack, series, (it) => {
+    this.populateTrack(seriesSection, seriesTrack, showSeries ? series : [], (it) => {
       if (this.options.onItemSelect) this.options.onItemSelect(it);
     });
 
-    this.populateTrack(peopleSection, peopleTrack, people, (it) => {
+    this.populateTrack(peopleSection, peopleTrack, showPeople ? people : [], (it) => {
       if (this.options.onPersonSelect) this.options.onPersonSelect(it.Id);
     });
   }
 
   populateTrack(section, track, items, onClick) {
-    if (items.length === 0) {
+    if (!items || items.length === 0) {
       section.style.display = 'none';
       track.innerHTML = '';
       return;
@@ -159,28 +202,25 @@ export class SearchScreen {
     section.style.display = 'flex';
     track.innerHTML = '';
 
+    const seen = new Set();
     items.forEach((item) => {
-      const card = document.createElement('div');
-      card.className = 'jellio-poster-card jellio-card-portrait';
-      card.setAttribute('data-focusable', 'true');
+      if (!item || !item.Id || seen.has(item.Id)) return;
+      seen.add(item.Id);
 
-      const imgTag = item.ImageTags?.Primary;
+      const imgTag = item.ImageTags?.Primary || item.PrimaryImageTag;
       const imgUrl = getImageUrl(item.Id, imgTag, 'Primary', 300);
-
-      card.innerHTML = `
-        <img class="jellio-poster-card-img" src="${imgUrl}" alt="${item.Name}" loading="lazy" />
-        <div class="jellio-poster-card-overlay">
-          <div class="jellio-poster-card-title">${item.Name}</div>
-          <div class="jellio-poster-card-subtitle">${item.ProductionYear || item.Type || ''}</div>
-        </div>
-      `;
-
-      card.onclick = () => onClick(item);
+      const card = renderPosterCard(item, {
+        aspectRatio: CardAspectRatio.PORTRAIT,
+        imageUrl: imgUrl,
+        canExpand: false,
+        onSelect: () => onClick(item),
+      });
       track.appendChild(card);
     });
   }
 
   clearResults() {
+    if (!this.container) return;
     const resultsContainer = this.container.querySelector('#search-results-container');
     if (resultsContainer) resultsContainer.style.display = 'none';
   }

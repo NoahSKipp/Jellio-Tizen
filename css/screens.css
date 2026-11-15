@@ -8,6 +8,11 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  background: var(--jellio-bg);
+}
+
+.jellio-screen.jellio-screen-full {
+  left: 0;
 }
 
 .jellio-screen-scroll {
@@ -15,28 +20,57 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding-bottom: 60px;
+  scrollbar-width: none;
+}
+
+.jellio-screen-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Home, Library, Service Bottom 52% Viewport */
+.jellio-home-rows-viewport {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 52%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 180px;
+  z-index: 2;
+  scrollbar-width: none;
+}
+
+.jellio-home-rows-viewport::-webkit-scrollbar {
+  display: none;
 }
 
 /* Horizontal Row Tracks */
 .jellio-row-container {
   display: flex;
   flex-direction: column;
-  margin-top: 24px;
+  margin-bottom: 22px;
+}
+
+.jellio-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .jellio-row-title {
-  font-size: 20px;
-  font-weight: 700;
-  margin-left: 48px;
-  margin-bottom: 12px;
+  font-size: 17px;
+  font-weight: 600;
+  margin-left: 52px;
+  margin-bottom: 10px;
   color: var(--jellio-text);
 }
 
 .jellio-row-track {
   display: flex;
   flex-direction: row;
-  gap: 16px;
-  padding: 8px 48px 16px;
+  gap: 14px;
+  padding: 6px 52px 14px;
   overflow-x: auto;
   overflow-y: visible;
   scrollbar-width: none;
@@ -46,52 +80,16 @@
   display: none;
 }
 
-/* LoginScreen */
-.jellio-login-screen {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: 80px;
-  height: 100%;
-  padding: 48px;
-}
-
-.jellio-quickconnect-box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  background: var(--jellio-bg-elevated);
-  padding: 40px;
-  border-radius: 20px;
-  border: 1px solid var(--jellio-border);
-}
-
-.jellio-quickconnect-code {
-  font-size: 52px;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  color: var(--jellio-trending);
-  margin: 20px 0;
-}
-
-.jellio-login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 400px;
-}
-
-/* HomeScreen */
+/* Hero Banner (Detail Screen) */
 .jellio-hero-banner {
   position: relative;
   width: 100%;
-  height: 480px;
+  min-height: 460px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding: 48px;
-  margin-bottom: 12px;
+  padding: 48px 52px 32px;
+  margin-bottom: 8px;
 }
 
 .jellio-hero-backdrop {
@@ -106,15 +104,16 @@
 .jellio-hero-scrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(13, 13, 13, 0.2) 0%, rgba(13, 13, 13, 0.95) 85%, var(--jellio-bg) 100%),
-              linear-gradient(90deg, rgba(13, 13, 13, 0.95) 0%, rgba(13, 13, 13, 0.4) 60%, transparent 100%);
+  background:
+    linear-gradient(180deg, rgba(13, 13, 13, 0.25) 0%, rgba(13, 13, 13, 0.94) 85%, var(--jellio-bg) 100%),
+    linear-gradient(90deg, rgba(13, 13, 13, 0.95) 0%, rgba(13, 13, 13, 0.45) 60%, transparent 100%);
   z-index: 2;
 }
 
 .jellio-hero-content {
   position: relative;
   z-index: 3;
-  max-width: 720px;
+  max-width: 780px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -122,20 +121,21 @@
 
 .jellio-hero-buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   margin-top: 12px;
 }
 
 .jellio-btn {
-  padding: 12px 24px;
+  padding: 11px 22px;
   border-radius: 10px;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   border: none;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.14);
   color: var(--jellio-text);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
 }
@@ -145,16 +145,15 @@
   color: #111111;
 }
 
-.jellio-btn.jellio-focused {
-  background: #ffffff;
-  color: #111111;
-  transform: scale(1.05);
+.jellio-btn-danger {
+  background: rgba(255, 107, 129, 0.18);
+  color: var(--jellio-danger);
 }
 
-.jellio-home-edit-controls {
-  display: flex;
-  gap: 8px;
-  margin-left: 48px;
+.jellio-btn.jellio-focused {
+  background: #ffffff !important;
+  color: #111111 !important;
+  transform: scale(1.04);
 }
 
 /* DetailScreen */
@@ -164,15 +163,16 @@
 
 .jellio-media-tech-badges-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
 }
 
 .jellio-tech-badge {
-  padding: 3px 6px;
-  border-radius: 4px;
+  padding: 3px 8px;
+  border-radius: 5px;
   border: 1px solid rgba(255, 255, 255, 0.25);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--jellio-text-secondary);
 }
@@ -181,7 +181,7 @@
 .jellio-person-header {
   display: flex;
   gap: 36px;
-  padding: 48px;
+  padding: 48px 52px 32px;
 }
 
 .jellio-person-portrait {
@@ -190,42 +190,52 @@
   border-radius: 16px;
   object-fit: cover;
   border: 2px solid var(--jellio-border);
+  flex-shrink: 0;
+  background: var(--jellio-bg-elevated);
 }
 
 .jellio-person-bio {
   flex: 1;
-  font-size: 16px;
+  font-size: 15px;
   color: var(--jellio-text-secondary);
   line-height: 1.6;
 }
 
-/* LibraryScreen */
+/* Library & Filter Pills */
 .jellio-library-filter-bar {
   display: flex;
   gap: 10px;
-  padding: 24px 48px;
+  padding: 20px 52px;
 }
 
 .jellio-filter-pill {
   padding: 8px 18px;
-  border-radius: 20px;
+  border-radius: 999px;
   background: var(--jellio-bg-elevated);
   border: 1px solid var(--jellio-border);
   color: var(--jellio-text-secondary);
   font-size: 14px;
   font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.jellio-filter-pill.jellio-btn-primary {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.35);
 }
 
 .jellio-filter-pill.jellio-focused {
-  background: #ffffff;
-  color: var(--jellio-bg);
+  background: #ffffff !important;
+  color: var(--jellio-bg) !important;
 }
 
 .jellio-poster-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: 20px;
-  padding: 12px 48px 48px;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 18px;
+  padding: 12px 52px 48px;
 }
 
 /* SearchScreen */
@@ -233,19 +243,19 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 36px 48px;
-  gap: 24px;
+  padding: 32px 52px 16px;
+  gap: 20px;
 }
 
 .jellio-search-input-box {
-  width: 600px;
-  height: 52px;
+  width: 640px;
+  height: 50px;
   background: var(--jellio-bg-elevated);
   border: 1px solid var(--jellio-border);
   border-radius: 14px;
   padding: 0 20px;
   color: var(--jellio-text);
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .jellio-onscreen-keyboard {
@@ -261,14 +271,16 @@
 }
 
 .jellio-key-btn {
-  width: 48px;
-  height: 48px;
+  min-width: 46px;
+  height: 44px;
+  padding: 0 10px;
   border-radius: 8px;
   background: var(--jellio-bg-elevated);
   border: 1px solid var(--jellio-border);
   color: var(--jellio-text);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
+  cursor: pointer;
 }
 
 .jellio-key-btn.jellio-focused {
@@ -303,11 +315,17 @@
   font-weight: 600;
   border: none;
   cursor: pointer;
+  text-align: left;
+}
+
+.jellio-settings-nav-item.jellio-active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
 }
 
 .jellio-settings-nav-item.jellio-focused {
-  background: #ffffff;
-  color: var(--jellio-bg);
+  background: #ffffff !important;
+  color: var(--jellio-bg) !important;
 }
 
 .jellio-settings-pane {

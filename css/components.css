@@ -1,21 +1,177 @@
-/* Poster Card (Portrait 2:3 and Landscape 16:9) */
+/* ShowcaseHost & HomeItemShowcase matching HomeItemShowcase.kt */
+.jellio-home-showcase-mount {
+  position: relative;
+  width: 100%;
+  height: calc(48% + 38px);
+  flex-shrink: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.jellio-showcase-host,
+.jellio-showcase {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: linear-gradient(
+    180deg,
+    var(--jellio-bg) 0%,
+    var(--jellio-bg) 62%,
+    rgba(13, 13, 13, 0.45) 86%,
+    transparent 100%
+  );
+}
+
+.jellio-showcase-backdrop-container {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 72%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.jellio-showcase-backdrop-container::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      90deg,
+      var(--jellio-bg) 0%,
+      rgba(13, 13, 13, 0.88) 18%,
+      rgba(13, 13, 13, 0.42) 45%,
+      transparent 72%
+    ),
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      transparent 55%,
+      rgba(13, 13, 13, 0.72) 82%,
+      var(--jellio-bg) 100%
+    );
+}
+
+.jellio-showcase-backdrop {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
+}
+
+.jellio-showcase-content {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 46%;
+  height: 100%;
+  padding: 24px 24px 52px 52px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  z-index: 2;
+}
+
+.jellio-showcase-logo-box {
+  height: 72px;
+  display: flex;
+  align-items: flex-end;
+}
+
+.jellio-showcase-logo {
+  max-height: 72px;
+  max-width: 340px;
+  object-fit: contain;
+  object-position: left bottom;
+  display: block;
+}
+
+.jellio-showcase-title {
+  font-size: 32px;
+  line-height: 36px;
+  font-weight: 800;
+  color: var(--jellio-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.jellio-showcase-metadata {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  color: var(--jellio-text-secondary);
+  font-size: 15px;
+  font-weight: 500;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.jellio-showcase-dot {
+  color: rgba(179, 179, 179, 0.6);
+  font-size: 13px;
+}
+
+.jellio-showcase-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  color: var(--jellio-text-secondary);
+}
+
+.jellio-showcase-chip {
+  align-self: flex-start;
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--jellio-text);
+}
+
+.jellio-showcase-overview {
+  font-size: 14px;
+  line-height: 19px;
+  color: rgba(255, 255, 255, 0.86);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Poster Card (Portrait 2:3 and Landscape 16:9 + 2500ms 16:9 Focus Expansion) */
 .jellio-poster-card {
   position: relative;
   flex-shrink: 0;
   border-radius: 12px;
   overflow: hidden;
-  background-color: var(--jellio-card-bg);
+  background-color: var(--jellio-bg-elevated);
   cursor: pointer;
+  transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1),
+              transform 160ms cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 160ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .jellio-poster-card.jellio-card-portrait {
-  width: 170px;
-  height: 255px;
+  width: 148px;
+  height: 222px;
+}
+
+.jellio-poster-card.jellio-card-portrait.jellio-card-expanded {
+  width: 394px;
+  height: 222px;
 }
 
 .jellio-poster-card.jellio-card-landscape {
-  width: 300px;
-  height: 169px;
+  width: 280px;
+  height: 158px;
 }
 
 .jellio-poster-card-img {
@@ -25,44 +181,171 @@
   display: block;
 }
 
-.jellio-poster-card-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, transparent 40%, rgba(0, 0, 0, 0.85) 100%);
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: 12px;
-}
-
-.jellio-poster-card-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--jellio-text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.jellio-poster-card-subtitle {
-  font-size: 12px;
-  color: var(--jellio-text-secondary);
-}
-
-/* Badges & Progress */
-.jellio-watched-check-badge {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+.jellio-poster-card-placeholder {
+  width: 100%;
+  height: 100%;
+  background: var(--jellio-bg-elevated);
+  padding: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
+  text-align: center;
+}
+
+.jellio-card-placeholder-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.78);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Card Rating Chip (TMDB + Score) */
+.jellio-card-rating-chip {
+  position: absolute;
+  top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.65);
+  border-radius: 999px;
+  padding: 3px 7px;
+  font-size: 12px;
+  font-weight: 600;
   color: #ffffff;
+  z-index: 3;
+}
+
+.jellio-card-rating-chip.jellio-rating-chip-end {
+  right: 6px;
+}
+
+.jellio-card-rating-chip.jellio-rating-chip-start {
+  left: 6px;
+}
+
+/* Card Date Badge (Coming Soon) */
+.jellio-card-date-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(13, 13, 13, 0.88);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--jellio-rarity-legendary);
+  z-index: 3;
+}
+
+/* Card Episode Chip (Continue Watching / Up Next) */
+.jellio-card-episode-chip {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  background: rgba(0, 0, 0, 0.68);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+  z-index: 3;
+}
+
+.jellio-card-episode-chip.has-progress {
+  bottom: 10px;
+}
+
+/* Expanded Card Overlay */
+.jellio-card-expanded-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: var(--jellio-bg-elevated);
+}
+
+.jellio-card-expanded-backdrop {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.jellio-card-expanded-scrim {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 72%;
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.88) 100%);
+}
+
+.jellio-card-remaining-chip {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.65);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.jellio-card-expanded-info {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.jellio-card-expanded-info.has-progress {
+  bottom: 12px;
+}
+
+.jellio-card-expanded-logo {
+  max-height: 40px;
+  max-width: 75%;
+  object-fit: contain;
+  object-position: left bottom;
+}
+
+.jellio-card-expanded-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jellio-card-expanded-subtitle {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.82);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Watched Checkmark & Progress Bar */
+.jellio-watched-check-badge {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--jellio-secondary);
+  color: var(--jellio-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
 }
 
 .jellio-progress-bar {
@@ -71,19 +354,41 @@
   left: 0;
   right: 0;
   height: 4px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.25);
+  z-index: 5;
 }
 
 .jellio-progress-bar-fill {
   height: 100%;
-  background: var(--jellio-trending);
+  background: var(--jellio-secondary);
 }
 
-/* Stacked Avatars: AddedBy & Watchers */
-.jellio-badge-stack {
+/* AddedBy & Watchers Stacked Avatars */
+.jellio-card-addedby-badge,
+.jellio-card-watchers-badge {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  z-index: 3;
+}
+
+.jellio-card-watchers-badge.jellio-card-watchers-offset {
+  top: 34px;
+}
+
+.jellio-badge-bookmark-icon {
+  width: 22px;
+  height: 22px;
+  padding: 4px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.62);
+  fill: #ffffff;
+}
+
+.jellio-badge-stack {
   display: flex;
   align-items: center;
 }
@@ -92,27 +397,153 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 1.5px solid var(--jellio-bg);
+  border: 1.5px solid #141414;
   margin-left: -6px;
   background-color: var(--jellio-bg-elevated);
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffffff;
 }
 
 .jellio-badge-stack-avatar:first-child {
   margin-left: 0;
 }
 
-/* Coming Soon Date Pill */
-.jellio-coming-soon-pill {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  background: rgba(26, 26, 26, 0.9);
-  border: 1px solid var(--jellio-border);
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 11px;
+/* StudioHubRow Tiles matching StudioHubRow.kt */
+.jellio-studio-hub-tile {
+  width: 200px;
+  height: 110px;
+  border-radius: 12px;
+  background: var(--jellio-bg-elevated);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.jellio-studio-hub-tile.jellio-focused {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.jellio-studio-hub-logo {
+  max-width: 152px;
+  max-height: 62px;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+}
+
+.jellio-studio-hub-name {
+  font-size: 18px;
   font-weight: 700;
-  color: var(--jellio-season-accent);
+  color: var(--jellio-text);
+  text-align: center;
+}
+
+/* Row Expand ("See All") Button */
+.jellio-row-expand-button {
+  width: 120px;
+  height: 222px;
+  border-radius: 12px;
+  background: var(--jellio-bg-elevated);
+  color: var(--jellio-text);
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.jellio-row-expand-button.jellio-focused {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* RowListModal */
+.jellio-row-list-modal {
+  position: absolute;
+  inset: 0;
+  background: rgba(13, 13, 13, 0.96);
+  z-index: 160;
+  display: flex;
+  flex-direction: column;
+  padding: 36px 52px;
+}
+
+.jellio-row-list-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.jellio-row-list-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--jellio-text);
+}
+
+.jellio-row-list-count {
+  font-size: 15px;
+  color: var(--jellio-text-secondary);
+  margin-right: auto;
+}
+
+.jellio-row-list-close-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--jellio-border);
+  background: var(--jellio-bg-elevated);
+  color: var(--jellio-text);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.jellio-row-list-grid {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 18px;
+  padding: 8px 4px 48px;
+}
+
+/* Legacy poster card overlay (for Cast cards) */
+.jellio-poster-card-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 45%, rgba(0, 0, 0, 0.88) 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 10px 12px;
+}
+
+.jellio-poster-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--jellio-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jellio-poster-card-subtitle {
+  font-size: 11px;
+  color: var(--jellio-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* CardDialog Modal */
@@ -147,7 +578,6 @@
   margin-bottom: 6px;
 }
 
-/* CardOptionsMenuRow */
 .jellio-card-options-item {
   display: flex;
   align-items: center;
@@ -178,7 +608,7 @@
   color: var(--jellio-danger-focused);
 }
 
-/* StreamPickerOverlay */
+/* StreamPickerOverlay, ChangelogPopup, OnboardingOverlay, Toasts */
 .jellio-stream-picker-card {
   width: 640px;
   background: var(--jellio-bg-elevated);
@@ -189,7 +619,6 @@
   gap: 16px;
 }
 
-/* ChangelogPopup */
 .jellio-changelog-modal {
   width: 720px;
   max-height: 80vh;
@@ -219,7 +648,6 @@
   border-color: #ffffff;
 }
 
-/* OnboardingOverlay */
 .jellio-onboarding-modal {
   width: 680px;
   background: var(--jellio-bg-elevated);
@@ -232,7 +660,6 @@
   gap: 24px;
 }
 
-/* UpdateToast & AnnouncementToast */
 .jellio-toast {
   padding: 14px 20px;
   border-radius: 12px;

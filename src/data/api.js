@@ -1187,3 +1187,80 @@ export function getAvatarPresetUrl(presetId, options = {}) {
   const query = params.toString();
   return `${server}/Jellio/avatars/${encodedId}${query ? '?' + query : ''}`;
 }
+
+export async function getLibraryNavEntries(userId) {
+  const views = await getUserViews(userId).catch(() => []);
+  const list = Array.isArray(views) ? views : (views && views.Items) || [];
+  return list.filter((v) => {
+    if (!v || !v.Id) return false;
+    const col = (v.CollectionType || '').toLowerCase();
+    return col === 'movies' || col === 'tvshows' || col === 'livetv' || /anime/i.test(v.Name || '');
+  });
+}
+
+export function getServiceLogoUrl(serviceName, options = {}) {
+  const session = getSession();
+  const server = cleanServerAddress(options.serverAddress || (session ? session.serverAddress : ''));
+  const token = options.accessToken || (session ? session.accessToken : null);
+  const params = new URLSearchParams();
+  if (token) {
+    params.set('ApiKey', token);
+    params.set('api_key', token);
+  }
+  const query = params.toString();
+  return `${server}/Jellio/services/logo/${encodeURIComponent(serviceName)}${query ? '?' + query : ''}`;
+}
+
+export async function getServiceCatalogRow(serviceName, type = 'Movie', sort = 'Popular', limit = 20, genre = undefined) {
+  const session = getSession();
+  const targetId = session ? session.userId : '';
+  const params = new URLSearchParams({
+    service: serviceName,
+    type,
+    sort,
+    limit: String(limit),
+  });
+  if (genre) params.set('genre', genre);
+
+  try {
+    const res = await getJson('/Jellio/catalog/service?' + params.toString());
+    if (Array.isArray(res)) return res;
+    if (res && Array.isArray(res.Items)) return res.Items;
+  } catch (_) {}
+
+  const fallback = await getLibraryItems(targetId, {
+    includeItemTypes: type,
+    genres: genre,
+    limit,
+    sortBy: sort === 'TopRated' ? 'CommunityRating,SortName' : 'DateCreated,CommunityRating',
+    sortOrder: 'Descending',
+  }).catch(() => ({ Items: [] }));
+  return fallback.Items || [];
+}
+
+export async function getCatalogRow(catalog = 'trending', type = 'Movie', limit = 20, startIndex = 0) {
+  const session = getSession();
+  const targetId = session ? session.userId : '';
+  const params = new URLSearchParams({
+    catalog,
+    type,
+    limit: String(limit),
+    startIndex: String(startIndex),
+  });
+
+  try {
+    const res = await getJson('/Jellio/catalog?' + params.toString());
+    if (Array.isArray(res)) return res;
+    if (res && Array.isArray(res.Items)) return res.Items;
+  } catch (_) {}
+
+  const fallback = await getLibraryItems(targetId, {
+    includeItemTypes: type,
+    limit,
+    startIndex,
+    sortBy: 'DateCreated,CommunityRating',
+    sortOrder: 'Descending',
+  }).catch(() => ({ Items: [] }));
+  return fallback.Items || [];
+}
+

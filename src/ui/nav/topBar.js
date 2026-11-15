@@ -1,4 +1,4 @@
-// TopBar containing live clock (HomeClock) and NewNotificationsPill.
+// TopBar containing live clock (HomeClock) and QuickHubEntry pill matching HomeClock.kt and HomeScreen.kt.
 import { DisplayPreferences } from '../../data/prefs.js';
 import { isImmersive } from '../router.js';
 
@@ -6,52 +6,92 @@ export class TopBar {
   constructor(options = {}) {
     this.router = options.router;
     this.onOpenNotifications = options.onOpenNotifications || (() => {});
+    this.onOpenQuickHub = options.onOpenQuickHub || options.onOpenNotifications || (() => {});
     this.container = null;
     this.clockEl = null;
-    this.pillEl = null;
+    this.quickHubEl = null;
     this.clockTimer = null;
     this.pillTimeout = null;
     this.notificationCount = 0;
+    this.nowPlayingState = {
+      activeCount: 0,
+      title: '',
+      isPaused: false,
+    };
+  }
+
+  render() {
+    if (!this.container) {
+      this.container = document.createElement('div');
+      this.container.className = 'jellio-topbar-fixture';
+
+      // QuickHubEntry pill button
+      this.quickHubEl = document.createElement('button');
+      this.quickHubEl.className = 'jellio-quickhub-pill';
+      this.quickHubEl.setAttribute('data-focusable', 'true');
+      this.quickHubEl.innerHTML = this.renderQuickHubContent();
+      this.quickHubEl.addEventListener('click', () => {
+        this.onOpenQuickHub();
+      });
+      this.container.appendChild(this.quickHubEl);
+
+      // HomeClock
+      this.clockEl = document.createElement('div');
+      this.clockEl.className = 'jellio-home-clock';
+      this.clockEl.id = 'jellio-home-clock';
+      this.container.appendChild(this.clockEl);
+
+      this.startClock();
+      this.updateClock();
+
+      if (this.router) {
+        this.router.subscribe((route) => {
+          const immersive = isImmersive(route);
+          if (immersive) {
+            this.container.style.display = 'none';
+          } else {
+            this.container.style.display = 'flex';
+          }
+        });
+      }
+    }
+    return this.container;
   }
 
   mount(parentEl) {
     if (!parentEl) return;
-    this.container = document.createElement('div');
-    this.container.className = 'jellio-topbar-container';
+    parentEl.appendChild(this.render());
+  }
 
-    this.clockEl = document.createElement('div');
-    this.clockEl.className = 'jellio-home-clock';
-    this.clockEl.id = 'jellio-home-clock';
-    this.container.appendChild(this.clockEl);
+  renderQuickHubContent() {
+    if (this.nowPlayingState.activeCount > 0) {
+      const stateText = this.nowPlayingState.isPaused ? 'Paused' : (this.nowPlayingState.title || 'Now Playing');
+      const dotClass = this.nowPlayingState.isPaused ? 'jellio-nowplaying-dot paused' : 'jellio-nowplaying-dot pulsing';
+      return `
+        <span class="${dotClass}"></span>
+        <span class="jellio-quickhub-pill-text">${stateText}</span>
+      `;
+    }
 
-    this.pillEl = document.createElement('div');
-    this.pillEl.className = 'jellio-notification-pill';
-    this.pillEl.style.display = 'none';
-    this.pillEl.setAttribute('data-focusable', 'true');
-    this.pillEl.innerHTML = `
-      <svg viewBox="0 0 24 24" style="width: 20px; height: 20px; fill: currentColor;"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
-      <span class="jellio-notification-pill-text">Notifications</span>
-      <span class="jellio-notification-pill-badge" id="topbar-pill-count">0</span>
+    const hasBadge = this.notificationCount > 0;
+    const badgeHtml = hasBadge ? `<span class="jellio-quickhub-badge">${this.notificationCount}</span>` : '';
+    return `
+      <svg class="jellio-quickhub-icon" viewBox="0 0 24 24">
+        <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+      </svg>
+      <span class="jellio-quickhub-pill-text">Quick Hub</span>
+      ${badgeHtml}
     `;
-    this.pillEl.addEventListener('click', () => {
-      this.onOpenNotifications();
-    });
-    this.container.appendChild(this.pillEl);
+  }
 
-    parentEl.appendChild(this.container);
-
-    this.startClock();
-    this.updateClock();
-
-    if (this.router) {
-      this.router.subscribe((route) => {
-        const immersive = isImmersive(route);
-        if (immersive) {
-          this.container.style.display = 'none';
-        } else {
-          this.container.style.display = 'block';
-        }
-      });
+  setNowPlayingState(state = {}) {
+    this.nowPlayingState = {
+      activeCount: Number(state.activeCount) || 0,
+      title: state.title || '',
+      isPaused: Boolean(state.isPaused),
+    };
+    if (this.quickHubEl) {
+      this.quickHubEl.innerHTML = this.renderQuickHubContent();
     }
   }
 
@@ -80,27 +120,32 @@ export class TopBar {
     const now = new Date();
     let hours = now.getHours();
     const minutes = String(now.getMinutes()).padStart(2, '0');
+    let period = null;
 
     if (!use24h) {
+      period = hours < 12 ? 'AM' : 'PM';
       hours = hours % 12 || 12;
     }
-    const formattedHours = String(hours).padStart(2, '0');
-    this.clockEl.textContent = `${formattedHours}:${minutes}`;
+    const formattedHours = use24h ? String(hours).padStart(2, '0') : String(hours);
+
+    if (period) {
+      this.clockEl.innerHTML = `
+        <span class="jellio-clock-time">${formattedHours}:${minutes}</span>
+        <span class="jellio-clock-period">${period}</span>
+      `;
+    } else {
+      this.clockEl.innerHTML = `
+        <span class="jellio-clock-time">${formattedHours}:${minutes}</span>
+      `;
+    }
   }
 
   showNotificationPill(count, durationMs = 4000) {
-    if (!this.pillEl) return;
     this.notificationCount = Number(count) || 0;
-    if (this.notificationCount <= 0) {
-      this.hideNotificationPill();
-      return;
+    if (this.quickHubEl) {
+      this.quickHubEl.innerHTML = this.renderQuickHubContent();
+      this.quickHubEl.classList.add('jellio-pill-visible');
     }
-
-    const badge = this.pillEl.querySelector('#topbar-pill-count');
-    if (badge) badge.textContent = String(this.notificationCount);
-
-    this.pillEl.style.display = 'flex';
-    this.pillEl.classList.add('jellio-pill-visible');
 
     if (this.pillTimeout) clearTimeout(this.pillTimeout);
     if (durationMs > 0) {
@@ -111,9 +156,8 @@ export class TopBar {
   }
 
   hideNotificationPill() {
-    if (!this.pillEl) return;
-    this.pillEl.style.display = 'none';
-    this.pillEl.classList.remove('jellio-pill-visible');
+    if (!this.quickHubEl) return;
+    this.quickHubEl.classList.remove('jellio-pill-visible');
     if (this.pillTimeout) {
       clearTimeout(this.pillTimeout);
       this.pillTimeout = null;

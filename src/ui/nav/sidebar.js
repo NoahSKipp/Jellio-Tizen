@@ -1,4 +1,4 @@
-// Collapsible left navigation rail (88px to 260px).
+// Collapsible left navigation rail (88px to 260px) matching SidebarNav.kt.
 import { Route, RouteName, routesEqual } from '../router.js';
 import { getSession } from '../../data/session.js';
 import { focusElement } from '../../input/spatialNav.js';
@@ -27,9 +27,9 @@ export class SidebarNav {
     this.incomingFriendRequestsCount = 0;
     this.userAvatarUrl = null;
     this.container = null;
-    this.itemsContainer = null;
     this.isExpanded = false;
     this.enabled = true;
+    this.longPressTimer = null;
   }
 
   setLibraries(libraries) {
@@ -68,7 +68,6 @@ export class SidebarNav {
 
     const session = getSession();
     const currentRoute = this.router ? this.router.getCurrentRoute() : Route.Home();
-
     const navItems = this.buildNavItems();
 
     let itemsHtml = '';
@@ -76,48 +75,57 @@ export class SidebarNav {
       const isSelected = routesEqual(item.route, currentRoute);
       const activeClass = isSelected ? ' jellio-active' : '';
 
-      if (item.route.name === RouteName.PROFILE) {
+      if (item.isProfile) {
         const badgeVisible = this.incomingFriendRequestsCount > 0;
         const avatarImg = this.userAvatarUrl
-          ? `<img class="jellio-sidebar-avatar" src="${this.userAvatarUrl}" alt="Avatar">`
-          : `<div class="jellio-sidebar-avatar">${ICONS.profile}</div>`;
+          ? `<img class="jellio-sidebar-avatar-img" src="${this.userAvatarUrl}" alt="Avatar">`
+          : `<div class="jellio-sidebar-avatar-placeholder">${ICONS.profile}</div>`;
 
         itemsHtml += `
           <button class="jellio-sidebar-item${activeClass}" data-focusable="true" data-action="profile">
-            ${avatarImg}
-            ${badgeVisible ? '<div class="jellio-notification-dot"></div>' : ''}
+            <div class="jellio-sidebar-icon-container">
+              <div class="jellio-sidebar-avatar">${avatarImg}</div>
+              <div class="jellio-notification-dot" style="${badgeVisible ? '' : 'display: none;'}"></div>
+            </div>
             <span class="jellio-sidebar-item-label">${session ? session.userName : t('nav_profile', 'Profile')}</span>
           </button>
         `;
       } else {
         itemsHtml += `
           <button class="jellio-sidebar-item${activeClass}" data-focusable="true" data-route-id="${item.id}">
-            ${item.iconSvg}
+            <div class="jellio-sidebar-icon-container">
+              ${item.iconSvg}
+            </div>
             <span class="jellio-sidebar-item-label">${item.label}</span>
           </button>
         `;
       }
     }
 
+    const isSettingsActive = currentRoute && currentRoute.name === RouteName.SETTINGS;
+    const settingsActiveClass = isSettingsActive ? ' jellio-active' : '';
+
     this.container.innerHTML = `
-      <div class="jellio-sidebar-top">
-        <div class="jellio-sidebar-logo">
-          <svg class="jellio-sidebar-logo-icon" viewBox="0 0 24 24">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
-          </svg>
-          <span class="jellio-sidebar-logo-text">JELLIO</span>
-        </div>
-        <div class="jellio-sidebar-nav-items">
+      <div class="jellio-sidebar-scroll">
+        <div class="jellio-sidebar-items-list">
           ${itemsHtml}
         </div>
       </div>
       <div class="jellio-sidebar-bottom">
-        <button class="jellio-sidebar-item" data-focusable="true" data-action="settings">
-          ${ICONS.settings}
+        <button class="jellio-sidebar-item${settingsActiveClass}" data-focusable="true" data-action="settings">
+          <div class="jellio-sidebar-icon-container">
+            ${ICONS.settings}
+          </div>
           <span class="jellio-sidebar-item-label">${t('nav_settings', 'Settings')}</span>
         </button>
       </div>
     `;
+
+    // Wire up long-press trigger helper on profile button
+    const profileBtn = this.container.querySelector('[data-action="profile"]');
+    if (profileBtn) {
+      profileBtn._triggerCardOptions = () => this.onOpenAccountSwitcher();
+    }
 
     return this.container;
   }
@@ -125,15 +133,15 @@ export class SidebarNav {
   buildNavItems() {
     const items = [];
 
-    // Profile item
+    // 1. Profile (Immediately at the top, matching SidebarNav.kt)
     items.push({
       id: 'profile',
       route: Route.Profile(),
       label: t('nav_profile', 'Profile'),
-      iconSvg: ICONS.profile,
+      isProfile: true,
     });
 
-    // Home
+    // 2. Home
     items.push({
       id: 'home',
       route: Route.Home(),
@@ -141,7 +149,7 @@ export class SidebarNav {
       iconSvg: ICONS.home,
     });
 
-    // Search
+    // 3. Search
     items.push({
       id: 'search',
       route: Route.Search(),
@@ -149,7 +157,7 @@ export class SidebarNav {
       iconSvg: ICONS.search,
     });
 
-    // Dynamic library tabs
+    // 4. Dynamic library tabs
     for (const lib of this.libraries) {
       if (!lib || !lib.Id) continue;
       const colType = (lib.CollectionType || '').toLowerCase();
@@ -179,7 +187,7 @@ export class SidebarNav {
       }
     }
 
-    // Feed
+    // 5. Feed
     items.push({
       id: 'feed',
       route: Route.Feed(),
@@ -203,17 +211,32 @@ export class SidebarNav {
       }
     });
 
+    this.container.addEventListener('mouseenter', () => {
+      this.container.classList.add('jellio-sidebar-expanded');
+    });
+
+    this.container.addEventListener('mouseleave', () => {
+      const activeEl = document.activeElement;
+      if (!this.container.contains(activeEl)) {
+        this.container.classList.remove('jellio-sidebar-expanded');
+      }
+    });
+
     this.container.addEventListener('click', (e) => {
       const btn = e.target.closest('button');
       if (!btn) return;
 
       const action = btn.getAttribute('data-action');
       if (action === 'profile') {
-        this.onOpenAccountSwitcher();
+        if (this.router) {
+          this.router.switchTab(Route.Profile());
+        }
         return;
       }
       if (action === 'settings') {
-        this.router.switchTab(Route.Settings());
+        if (this.router) {
+          this.router.switchTab(Route.Settings());
+        }
         return;
       }
 
@@ -224,36 +247,53 @@ export class SidebarNav {
         this.router.switchTab(match.route);
       }
     });
+
+    // Profile contextmenu / long press opens Account Switcher
+    this.container.addEventListener('contextmenu', (e) => {
+      const profileBtn = e.target.closest('[data-action="profile"]');
+      if (profileBtn) {
+        e.preventDefault();
+        this.onOpenAccountSwitcher();
+      }
+    });
+
+    // Touch / pointer long press support
+    this.container.addEventListener('pointerdown', (e) => {
+      const profileBtn = e.target.closest('[data-action="profile"]');
+      if (profileBtn) {
+        this.longPressTimer = setTimeout(() => {
+          this.onOpenAccountSwitcher();
+          this.longPressTimer = null;
+        }, 700);
+      }
+    });
+
+    const cancelLongPress = () => {
+      if (this.longPressTimer) {
+        clearTimeout(this.longPressTimer);
+        this.longPressTimer = null;
+      }
+    };
+    this.container.addEventListener('pointerup', cancelLongPress);
+    this.container.addEventListener('pointercancel', cancelLongPress);
   }
 
   updateBadges() {
     if (!this.container) return;
-    const profileBtn = this.container.querySelector('[data-action="profile"]');
-    if (!profileBtn) return;
-
-    let dot = profileBtn.querySelector('.jellio-notification-dot');
-    if (this.incomingFriendRequestsCount > 0) {
-      if (!dot) {
-        dot = document.createElement('div');
-        dot.className = 'jellio-notification-dot';
-        profileBtn.appendChild(dot);
-      }
-    } else if (dot) {
-      dot.remove();
+    const dot = this.container.querySelector('[data-action="profile"] .jellio-notification-dot');
+    if (dot) {
+      dot.style.display = this.incomingFriendRequestsCount > 0 ? '' : 'none';
     }
   }
 
   updateAvatar() {
     if (!this.container) return;
-    const profileBtn = this.container.querySelector('[data-action="profile"]');
-    if (!profileBtn) return;
-
-    const existingAvatar = profileBtn.querySelector('.jellio-sidebar-avatar');
-    if (existingAvatar) {
+    const avatarEl = this.container.querySelector('[data-action="profile"] .jellio-sidebar-avatar');
+    if (avatarEl) {
       if (this.userAvatarUrl) {
-        existingAvatar.outerHTML = `<img class="jellio-sidebar-avatar" src="${this.userAvatarUrl}" alt="Avatar">`;
+        avatarEl.innerHTML = `<img class="jellio-sidebar-avatar-img" src="${this.userAvatarUrl}" alt="Avatar">`;
       } else {
-        existingAvatar.outerHTML = `<div class="jellio-sidebar-avatar">${ICONS.profile}</div>`;
+        avatarEl.innerHTML = `<div class="jellio-sidebar-avatar-placeholder">${ICONS.profile}</div>`;
       }
     }
   }

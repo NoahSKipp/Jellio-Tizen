@@ -1,308 +1,542 @@
-// Home screen displaying Hero banner, Continue Watching, Next Up, Watchlist, recommendations, and edit mode.
+// Home screen matching Jellio-TV HomeScreen.kt & HomeViewModel.kt.
+// Top 48%: ShowcaseHost (backdrop, ClearLogo/title, metadata row, 3-line overview of focused card).
+// Top-Right: TopBar (QuickHub pill + HomeClock).
+// Bottom 52%: Vertically scrolling rows (Continue Watching, Next Up, Watchlist, Studio Hubs,
+// Coming Soon, Community Watching, Trending, Popular, Top Rated, Seasonal, and Genre rows)
+// plus inline Home Edit Mode for reordering and hiding rows.
 import {
   getResumeItems,
   getNextUp,
   getWatchlistItems,
-  getSeasonalItems,
   getHeroCandidates,
+  getSeasonalItems,
+  getCalendarEntries,
+  getCommunityWatching,
+  getLibraryItems,
+  discoverGenres,
+  getGenreItems,
   toggleFavorite,
   setPlayed,
+  clearResumePosition,
+  hideSeriesFromNextUp,
+  hideFromComingSoon,
   getImageUrl,
+  getUserImageUrl,
+  getServiceLogoUrl,
 } from '../../data/api.js';
+import { getSession } from '../../data/session.js';
 import { HomeRowPreferences } from '../../data/prefs.js';
+import { ShowcaseHost } from '../components/showcase.js';
+import {
+  CardAspectRatio,
+  renderPosterCard,
+  renderPosterRow,
+  renderStudioHubRow,
+  renderComingSoonRow,
+} from '../components/posterCard.js';
+import { TopBar } from '../nav/topBar.js';
 import { focusFirstIn, focusElement } from '../../input/spatialNav.js';
+import { showAnnouncementToast } from '../overlays/toasts.js';
 
-export const DEFAULT_ROW_KEYS = [
-  'continue_watching',
-  'next_up',
-  'watchlist',
-  'recommendations',
-  'trending',
+export const STREAMING_SERVICES = [
+  'Netflix',
+  'Disney+',
+  'Prime Video',
+  'Apple TV+',
+  'Max',
+  'Hulu',
+  'Paramount+',
+  'Peacock',
+  'Crunchyroll',
+  'Discovery+',
 ];
+
+export const DEFAULT_HOME_ROW_SPECS = [
+  { id: 'continue_watching', title: 'Continue Watching', aspectRatio: CardAspectRatio.PORTRAIT, progress: true },
+  { id: 'next_up', title: 'Next Up', aspectRatio: CardAspectRatio.PORTRAIT, progress: true },
+  { id: 'watchlist', title: 'Watchlist', aspectRatio: CardAspectRatio.PORTRAIT },
+  { id: 'studio_hubs', title: 'Streaming Services', isStudioHub: true },
+  { id: 'coming_soon', title: 'Coming Soon', isComingSoon: true },
+  { id: 'community', title: 'What Others Are Watching', aspectRatio: CardAspectRatio.PORTRAIT },
+  { id: 'trending_movies', title: 'Trending Movies', aspectRatio: CardAspectRatio.PORTRAIT },
+  { id: 'trending_series', title: 'Trending Shows', aspectRatio: CardAspectRatio.PORTRAIT },
+  { id: 'top_rated', title: 'Top Rated', aspectRatio: CardAspectRatio.PORTRAIT },
+  { id: 'seasonal', title: 'Seasonal Picks', aspectRatio: CardAspectRatio.PORTRAIT },
+];
+
+export const DEFAULT_ROW_KEYS = DEFAULT_HOME_ROW_SPECS.map((r) => r.id);
 
 export class HomeScreen {
   constructor(options = {}) {
     this.options = options;
     this.container = null;
-    this.isEditMode = false;
-    this.heroItem = null;
+    this.showcase = null;
+    this.topBar = null;
     this.rowsData = new Map();
+    this.dynamicGenreSpecs = [];
+    this.isEditMode = Boolean(options.editMode);
+    this.watchlistPollTimer = null;
+    this.isDestroyed = false;
   }
 
   async render(container) {
+    this.isDestroyed = false;
     this.container = container;
     this.container.innerHTML = `
-      <div class="jellio-screen" data-focus-group="home-screen">
-        <div class="jellio-screen-scroll" id="home-scroll-container">
-          <section class="jellio-hero-banner" id="home-hero-banner">
-            <div class="jellio-hero-scrim"></div>
-            <div class="jellio-hero-content">
-              <h1 class="jellio-title-hero" id="hero-title">Loading...</h1>
-              <div id="hero-meta-chips" style="display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--jellio-text-secondary);"></div>
-              <p class="jellio-text-muted" id="hero-overview" style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; max-height: 72px;"></p>
-              <div class="jellio-hero-buttons">
-                <button class="jellio-btn jellio-btn-primary" data-focusable="true" id="hero-play-btn">Play</button>
-                <button class="jellio-btn" data-focusable="true" id="hero-watchlist-btn">Watchlist</button>
-                <button class="jellio-btn" data-focusable="true" id="home-edit-toggle-btn" style="margin-left: 16px;">Customize Home</button>
-              </div>
+      <div class="jellio-screen jellio-home-screen" data-focus-group="home-screen">
+        <div id="home-showcase-mount" class="jellio-home-showcase-mount"></div>
+        <div id="home-topbar-mount"></div>
+        <div class="jellio-home-rows-viewport" id="home-rows-viewport">
+          <div id="home-edit-banner" style="display: none; align-items: center; justify-content: space-between; margin: 0 52px 18px; padding: 14px 22px; background: rgba(26, 26, 26, 0.92); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 14px;">
+            <div>
+              <div style="font-size: 18px; font-weight: 700; color: #FFFFFF;">Customize Home Rows</div>
+              <div style="font-size: 13px; color: #B3B3B3;">Move rows up or down, toggle visibility, or reset to default order.</div>
             </div>
-          </section>
-
-          <div id="home-edit-controls-bar" class="jellio-home-edit-controls" style="display: none; padding: 12px 0;">
-            <button class="jellio-btn jellio-btn-primary" data-focusable="true" id="home-edit-done-btn">Done Editing</button>
-            <button class="jellio-btn" data-focusable="true" id="home-edit-reset-btn">Reset Order</button>
+            <div style="display: flex; gap: 10px;">
+              <button class="jellio-btn" data-focusable="true" id="home-edit-reset-btn">Reset Default</button>
+              <button class="jellio-btn jellio-btn-primary" data-focusable="true" id="home-edit-done-btn">Done</button>
+            </div>
           </div>
-
-          <div id="home-rows-container"></div>
+          <div id="home-rows-container" class="jellio-home-rows-list">
+            <div id="home-loading-state" style="padding: 36px 52px; color: #B3B3B3; font-size: 16px;">Loading your home rows...</div>
+          </div>
         </div>
       </div>
     `;
 
-    this.bindHeroButtons();
-    await this.loadData();
+    // Mount ShowcaseHost in top 48%
+    const showcaseMount = this.container.querySelector('#home-showcase-mount');
+    this.showcase = new ShowcaseHost();
+    this.showcase.mount(showcaseMount);
+
+    // Mount TopBar (QuickHub pill + HomeClock) in top-right
+    const topBarMount = this.container.querySelector('#home-topbar-mount');
+    this.topBar = new TopBar({
+      onOpenQuickHub: () => {
+        if (this.options.onOpenQuickHub) this.options.onOpenQuickHub();
+      },
+    });
+    topBarMount.appendChild(this.topBar.render());
+
+    this.bindEditBannerEvents();
+    await this.loadAllData();
+    this.startWatchlistPolling();
   }
 
-  bindHeroButtons() {
-    const playBtn = this.container.querySelector('#hero-play-btn');
-    const watchlistBtn = this.container.querySelector('#hero-watchlist-btn');
-    const editToggleBtn = this.container.querySelector('#home-edit-toggle-btn');
-    const editDoneBtn = this.container.querySelector('#home-edit-done-btn');
-    const editResetBtn = this.container.querySelector('#home-edit-reset-btn');
+  bindEditBannerEvents() {
+    if (!this.container) return;
+    const resetBtn = this.container.querySelector('#home-edit-reset-btn');
+    const doneBtn = this.container.querySelector('#home-edit-done-btn');
 
-    playBtn.onclick = () => {
-      if (this.heroItem && this.options.onPlay) {
-        this.options.onPlay(this.heroItem);
-      }
-    };
-
-    watchlistBtn.onclick = async () => {
-      if (!this.heroItem) return;
-      const isFav = this.heroItem.UserData ? this.heroItem.UserData.IsFavorite : false;
-      try {
-        await toggleFavorite(this.heroItem.Id, !isFav);
-        if (this.heroItem.UserData) {
-          this.heroItem.UserData.IsFavorite = !isFav;
+    if (resetBtn) {
+      resetBtn.onclick = () => {
+        if (typeof HomeRowPreferences.reset === 'function') {
+          HomeRowPreferences.reset();
+        } else {
+          HomeRowPreferences.setRowOrder([]);
+          HomeRowPreferences.setHiddenRows([]);
         }
-        watchlistBtn.textContent = !isFav ? 'In Watchlist' : 'Watchlist';
-      } catch (_) {}
-    };
+        this.renderRows();
+        showAnnouncementToast('Home rows reset to default');
+      };
+    }
 
-    editToggleBtn.onclick = () => this.setEditMode(true);
-    editDoneBtn.onclick = () => this.setEditMode(false);
-    editResetBtn.onclick = () => {
-      HomeRowPreferences.setRowOrder(DEFAULT_ROW_KEYS);
-      HomeRowPreferences.setHiddenRows([]);
-      this.setEditMode(false);
-      this.loadData();
-    };
-  }
-
-  setEditMode(active) {
-    this.isEditMode = active;
-    const controlsBar = this.container.querySelector('#home-edit-controls-bar');
-    controlsBar.style.display = active ? 'flex' : 'none';
-    this.renderRows();
-    if (active) {
-      focusFirstIn(controlsBar);
-    } else {
-      const editToggleBtn = this.container.querySelector('#home-edit-toggle-btn');
-      focusElement(editToggleBtn);
+    if (doneBtn) {
+      doneBtn.onclick = () => {
+        this.isEditMode = false;
+        this.renderRows();
+      };
     }
   }
 
-  async loadData() {
+  toggleEditMode() {
+    this.isEditMode = !this.isEditMode;
+    this.renderRows();
+  }
+
+  getAllSpecs() {
+    return [...DEFAULT_HOME_ROW_SPECS, ...this.dynamicGenreSpecs];
+  }
+
+  getOrderedRowSpecs() {
+    const allSpecs = this.getAllSpecs();
+    const savedOrder = HomeRowPreferences.getRowOrder() || [];
+    const hiddenSet = new Set(HomeRowPreferences.getHiddenRows() || []);
+
+    const specMap = new Map(allSpecs.map((r) => [r.id, r]));
+    const ordered = [];
+
+    for (const id of savedOrder) {
+      if (specMap.has(id)) {
+        ordered.push(specMap.get(id));
+        specMap.delete(id);
+      }
+    }
+    for (const remaining of specMap.values()) {
+      ordered.push(remaining);
+    }
+
+    if (this.isEditMode) {
+      return ordered.map((r) => ({ ...r, hidden: hiddenSet.has(r.id) }));
+    }
+    return ordered.filter((r) => !hiddenSet.has(r.id));
+  }
+
+  async loadAllData() {
+    const session = getSession();
+    const userId = session ? session.userId : '';
+
     try {
-      const [resumes, nextUps, watchlists, seasonals, heroes] = await Promise.all([
+      const [
+        resume,
+        nextUp,
+        watchlist,
+        calendar,
+        community,
+        trendingMoviesRes,
+        trendingSeriesRes,
+        topRatedRes,
+        seasonal,
+        genres,
+      ] = await Promise.all([
         getResumeItems(20).catch(() => []),
         getNextUp(20).catch(() => []),
-        getWatchlistItems(20).catch(() => []),
+        getWatchlistItems(40).catch(() => []),
+        getCalendarEntries().catch(() => []),
+        getCommunityWatching().catch(() => []),
+        getLibraryItems(userId, {
+          includeItemTypes: 'Movie',
+          sortBy: 'DateCreated,CommunityRating',
+          sortOrder: 'Descending',
+          limit: 20,
+        }).catch(() => ({ Items: [] })),
+        getLibraryItems(userId, {
+          includeItemTypes: 'Series',
+          sortBy: 'DateCreated,CommunityRating',
+          sortOrder: 'Descending',
+          limit: 20,
+        }).catch(() => ({ Items: [] })),
+        getLibraryItems(userId, {
+          includeItemTypes: 'Movie,Series',
+          sortBy: 'CommunityRating',
+          sortOrder: 'Descending',
+          limit: 20,
+        }).catch(() => ({ Items: [] })),
         getSeasonalItems(20).catch(() => []),
-        getHeroCandidates(6).catch(() => []),
+        discoverGenres(userId, null, 'Movie,Series', 4).catch(() => []),
       ]);
 
-      const candidateHero = (heroes && heroes[0]) || (resumes && resumes[0]) || (nextUps && nextUps[0]);
-      if (candidateHero) {
-        this.setHeroItem(candidateHero);
+      if (this.isDestroyed) return;
+
+      this.rowsData.set('continue_watching', resume || []);
+      this.rowsData.set('next_up', nextUp || []);
+      this.rowsData.set('watchlist', watchlist || []);
+      this.rowsData.set('studio_hubs', STREAMING_SERVICES);
+      this.rowsData.set('coming_soon', calendar || []);
+      this.rowsData.set('community', community || []);
+      this.rowsData.set('trending_movies', (trendingMoviesRes && trendingMoviesRes.Items) || []);
+      this.rowsData.set('trending_series', (trendingSeriesRes && trendingSeriesRes.Items) || []);
+      this.rowsData.set('top_rated', (topRatedRes && topRatedRes.Items) || []);
+      this.rowsData.set('seasonal', seasonal || []);
+
+      // Load top 4 genre rows
+      this.dynamicGenreSpecs = [];
+      if (Array.isArray(genres) && genres.length > 0) {
+        const genreResults = await Promise.all(
+          genres.slice(0, 4).map(async (genre) => {
+            const items = await getGenreItems(userId, null, null, genre, 20).catch(() => []);
+            return { genre, items: items || [] };
+          })
+        );
+        for (const { genre, items } of genreResults) {
+          if (items.length > 0) {
+            const id = `genre_${genre.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
+            this.dynamicGenreSpecs.push({
+              id,
+              title: genre,
+              aspectRatio: CardAspectRatio.PORTRAIT,
+            });
+            this.rowsData.set(id, items);
+          }
+        }
       }
 
-      this.rowsData.set('continue_watching', { title: 'Continue Watching', items: resumes, landscape: true });
-      this.rowsData.set('next_up', { title: 'Next Up', items: nextUps, landscape: true });
-      this.rowsData.set('watchlist', { title: 'Watchlist', items: watchlists, landscape: false });
-      this.rowsData.set('recommendations', { title: 'Recommendations', items: seasonals, landscape: false });
-      this.rowsData.set('trending', { title: 'Trending', items: seasonals.slice(0, 10), landscape: false });
+      // Set initial fallback item for ShowcaseHost
+      const firstHeroItem =
+        (resume && resume[0]) ||
+        (nextUp && nextUp[0]) ||
+        (watchlist && watchlist[0]) ||
+        (trendingMoviesRes?.Items && trendingMoviesRes.Items[0]) ||
+        (trendingSeriesRes?.Items && trendingSeriesRes.Items[0]) ||
+        (topRatedRes?.Items && topRatedRes.Items[0]) ||
+        null;
+
+      if (firstHeroItem && this.showcase) {
+        this.showcase.setFallbackItem(firstHeroItem);
+        this.showcase.setHighlightedItem(firstHeroItem);
+      }
 
       this.renderRows();
-      focusFirstIn(this.container);
-    } catch (err) {
-      console.warn('HomeScreen: loadData error', err);
-    }
-  }
 
-  setHeroItem(item) {
-    this.heroItem = item;
-    const banner = this.container.querySelector('#home-hero-banner');
-    const titleEl = this.container.querySelector('#hero-title');
-    const metaChipsEl = this.container.querySelector('#hero-meta-chips');
-    const overviewEl = this.container.querySelector('#hero-overview');
-    const watchlistBtn = this.container.querySelector('#hero-watchlist-btn');
-
-    titleEl.textContent = item.Name || 'Featured Title';
-    overviewEl.textContent = item.Overview || '';
-
-    const year = item.ProductionYear || (item.PremiereDate ? item.PremiereDate.slice(0, 4) : '');
-    const rating = item.OfficialRating || '';
-    const runtime = item.RunTimeTicks ? `${Math.round(item.RunTimeTicks / 600000000)}m` : '';
-
-    metaChipsEl.innerHTML = `
-      ${year ? `<span class="jellio-tech-badge">${year}</span>` : ''}
-      ${rating ? `<span class="jellio-tech-badge">${rating}</span>` : ''}
-      ${runtime ? `<span class="jellio-tech-badge">${runtime}</span>` : ''}
-    `;
-
-    const isFav = item.UserData && item.UserData.IsFavorite;
-    watchlistBtn.textContent = isFav ? 'In Watchlist' : 'Watchlist';
-
-    const backdropTag = (item.BackdropImageTags && item.BackdropImageTags[0]) || item.ImageTags?.Primary;
-    if (backdropTag) {
-      let bgImg = banner.querySelector('.jellio-hero-backdrop');
-      if (!bgImg) {
-        bgImg = document.createElement('img');
-        bgImg.className = 'jellio-hero-backdrop';
-        banner.prepend(bgImg);
+      // Focus the first card in the first row
+      const rowsContainer = this.container?.querySelector('#home-rows-container');
+      if (rowsContainer) {
+        focusFirstIn(rowsContainer);
       }
-      bgImg.src = getImageUrl(item.Id, backdropTag, 'Backdrop', 1920);
+    } catch (err) {
+      console.warn('HomeScreen: failed loading data', err);
     }
   }
 
-  renderRows() {
+  startWatchlistPolling() {
+    this.stopWatchlistPolling();
+    this.watchlistPollTimer = setInterval(async () => {
+      if (this.isDestroyed || !this.container) return;
+      try {
+        const freshWatchlist = await getWatchlistItems(40);
+        if (this.isDestroyed) return;
+        const prev = this.rowsData.get('watchlist') || [];
+        const prevIds = prev.map((i) => i.Id).join(',');
+        const nextIds = (freshWatchlist || []).map((i) => i.Id).join(',');
+        if (prevIds !== nextIds) {
+          this.rowsData.set('watchlist', freshWatchlist || []);
+          this.renderRows(true);
+        }
+      } catch (_) {}
+    }, 20000);
+  }
+
+  stopWatchlistPolling() {
+    if (this.watchlistPollTimer) {
+      clearInterval(this.watchlistPollTimer);
+      this.watchlistPollTimer = null;
+    }
+  }
+
+  handleCardFocus(item, cardEl) {
+    if (this.showcase && item) {
+      this.showcase.setHighlightedItem(item);
+    }
+    // Keep focused row aligned near the top of the bottom 52% rows viewport
+    const viewport = this.container?.querySelector('#home-rows-viewport');
+    const rowEl = cardEl?.closest('.jellio-row-container');
+    if (viewport && rowEl) {
+      const targetTop = Math.max(0, rowEl.offsetTop - 12);
+      if (typeof viewport.scrollTo === 'function') {
+        viewport.scrollTo({ top: targetTop, behavior: 'smooth' });
+      } else {
+        viewport.scrollTop = targetTop;
+      }
+    }
+  }
+
+  renderRows(preserveFocus = false) {
+    if (!this.container) return;
     const rowsContainer = this.container.querySelector('#home-rows-container');
+    const editBanner = this.container.querySelector('#home-edit-banner');
+    if (!rowsContainer) return;
+
+    const prevFocusedId = preserveFocus
+      ? document.activeElement?.getAttribute('data-item-id')
+      : null;
+
+    if (editBanner) {
+      editBanner.style.display = this.isEditMode ? 'flex' : 'none';
+    }
+
     rowsContainer.innerHTML = '';
+    const specs = this.getOrderedRowSpecs();
 
-    const savedOrder = HomeRowPreferences.getRowOrder();
-    const hiddenSet = new Set(HomeRowPreferences.getHiddenRows());
-
-    const activeOrder = savedOrder.length > 0 ? savedOrder : DEFAULT_ROW_KEYS;
-
-    activeOrder.forEach((rowKey, index) => {
-      if (hiddenSet.has(rowKey) && !this.isEditMode) return;
-      const row = this.rowsData.get(rowKey);
-      if (!row || (!this.isEditMode && row.items.length === 0)) return;
-
-      const rowSection = document.createElement('div');
-      rowSection.className = 'jellio-row-container';
-      rowSection.setAttribute('data-focus-group', `row-${rowKey}`);
-
-      const header = document.createElement('div');
-      header.style.display = 'flex';
-      header.style.alignItems = 'center';
-      header.style.justifyContent = 'space-between';
-      header.style.paddingRight = '48px';
-
-      const title = document.createElement('h2');
-      title.className = 'jellio-row-title';
-      title.textContent = row.title;
-      header.appendChild(title);
+    specs.forEach((spec, idx) => {
+      const data = this.rowsData.get(spec.id) || [];
+      if (!this.isEditMode && data.length === 0) return;
 
       if (this.isEditMode) {
-        const reorderTools = document.createElement('div');
-        reorderTools.style.display = 'flex';
-        reorderTools.style.gap = '8px';
-
-        const upBtn = document.createElement('button');
-        upBtn.className = 'jellio-btn';
-        upBtn.setAttribute('data-focusable', 'true');
-        upBtn.textContent = 'Up';
-        upBtn.onclick = () => this.moveRow(rowKey, -1);
-
-        const downBtn = document.createElement('button');
-        downBtn.className = 'jellio-btn';
-        downBtn.setAttribute('data-focusable', 'true');
-        downBtn.textContent = 'Down';
-        downBtn.onclick = () => this.moveRow(rowKey, 1);
-
-        const hideBtn = document.createElement('button');
-        hideBtn.className = 'jellio-btn';
-        hideBtn.setAttribute('data-focusable', 'true');
-        hideBtn.textContent = hiddenSet.has(rowKey) ? 'Show' : 'Hide';
-        hideBtn.onclick = () => this.toggleRowHidden(rowKey);
-
-        reorderTools.appendChild(upBtn);
-        reorderTools.appendChild(downBtn);
-        reorderTools.appendChild(hideBtn);
-        header.appendChild(reorderTools);
-      }
-
-      rowSection.appendChild(header);
-
-      const track = document.createElement('div');
-      track.className = 'jellio-row-track';
-      track.setAttribute('data-scroll-orientation', 'horizontal');
-
-      row.items.forEach((item) => {
-        const card = document.createElement('div');
-        card.className = `jellio-poster-card ${row.landscape ? 'jellio-card-landscape' : 'jellio-card-portrait'}`;
-        card.setAttribute('data-focusable', 'true');
-
-        const imgTag = row.landscape ? (item.BackdropImageTags?.[0] || item.ImageTags?.Primary) : item.ImageTags?.Primary;
-        const imgUrl = getImageUrl(item.Id, imgTag, row.landscape ? 'Backdrop' : 'Primary', row.landscape ? 400 : 300);
-
-        let progressHtml = '';
-        if (item.UserData && item.UserData.PlaybackPositionTicks && item.RunTimeTicks) {
-          const pct = Math.min(100, Math.round((item.UserData.PlaybackPositionTicks / item.RunTimeTicks) * 100));
-          progressHtml = `<div class="jellio-progress-bar"><div class="jellio-progress-bar-fill" style="width: ${pct}%;"></div></div>`;
-        }
-
-        card.innerHTML = `
-          <img class="jellio-poster-card-img" src="${imgUrl}" alt="${item.Name || ''}" loading="lazy" />
-          <div class="jellio-poster-card-overlay">
-            <div class="jellio-poster-card-title">${item.Name || ''}</div>
-            <div class="jellio-poster-card-subtitle">${item.SeriesName || item.ProductionYear || ''}</div>
+        const editRowWrap = document.createElement('div');
+        editRowWrap.className = 'jellio-row-container';
+        editRowWrap.style.padding = '12px 52px';
+        editRowWrap.innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: space-between; background: #1A1A1A; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px 20px;">
+            <span style="font-size: 18px; font-weight: 600; color: ${spec.hidden ? '#808080' : '#FFFFFF'};">
+              ${spec.title} ${spec.hidden ? '(Hidden)' : ''}
+            </span>
+            <div style="display: flex; gap: 10px;">
+              <button class="jellio-btn" data-focusable="true" data-edit-move="up" data-row-idx="${idx}">Move Up</button>
+              <button class="jellio-btn" data-focusable="true" data-edit-move="down" data-row-idx="${idx}">Move Down</button>
+              <button class="jellio-btn ${spec.hidden ? '' : 'jellio-btn-primary'}" data-focusable="true" data-edit-toggle="${spec.id}">
+                ${spec.hidden ? 'Show Row' : 'Hide Row'}
+              </button>
+            </div>
           </div>
-          ${progressHtml}
         `;
 
-        card.onclick = () => {
-          if (this.options.onItemSelect) {
-            this.options.onItemSelect(item);
+        editRowWrap.querySelector('[data-edit-move="up"]').onclick = () => this.moveRow(idx, -1);
+        editRowWrap.querySelector('[data-edit-move="down"]').onclick = () => this.moveRow(idx, 1);
+        editRowWrap.querySelector(`[data-edit-toggle="${spec.id}"]`).onclick = () => this.toggleRowVisibility(spec.id);
+        rowsContainer.appendChild(editRowWrap);
+        return;
+      }
+
+      if (spec.isStudioHub) {
+        if (typeof renderStudioHubRow === 'function') {
+          const hubRow = renderStudioHubRow(data, {
+            title: spec.title,
+            logoUrl: (serviceName) => getServiceLogoUrl(serviceName),
+            onServiceClick: (serviceName) => {
+              if (this.options.onServiceSelect) {
+                this.options.onServiceSelect(serviceName);
+              }
+            },
+          });
+          rowsContainer.appendChild(hubRow);
+        }
+        return;
+      }
+
+      if (spec.isComingSoon && typeof renderComingSoonRow === 'function') {
+        const comingSoonRow = renderComingSoonRow(data, {
+          title: spec.title,
+          onSelect: (item) => {
+            if (this.options.onItemSelect) this.options.onItemSelect(item);
+          },
+          onFocus: (item, cardEl) => this.handleCardFocus(item, cardEl),
+          onRemoveFromComingSoon: async (item) => {
+            await hideFromComingSoon(item.Id || item.ItemId);
+            const filtered = data.filter((i) => (i.Id || i.ItemId) !== (item.Id || item.ItemId));
+            this.rowsData.set('coming_soon', filtered);
+            this.renderRows(true);
+          },
+        });
+        if (comingSoonRow) rowsContainer.appendChild(comingSoonRow);
+        return;
+      }
+
+      if (typeof renderPosterRow === 'function') {
+        const rowEl = renderPosterRow(
+          { key: spec.id, title: spec.title, items: data },
+          {
+            progress: Boolean(spec.progress),
+            aspectRatio: spec.aspectRatio || CardAspectRatio.PORTRAIT,
+            imageUrl: (item, type, maxWidth) => {
+              const tag = item?.ImageTags?.[type] || item?.PrimaryImageTag || item?.BackdropImageTags?.[0] || null;
+              return getImageUrl(item?.Id, tag, type, maxWidth);
+            },
+            userImageUrl: (uid, tag) => getUserImageUrl(uid, tag, 100),
+            onSelect: (item) => {
+              if (spec.id === 'continue_watching' && this.options.onPlayItem) {
+                this.options.onPlayItem(item);
+              } else if (this.options.onItemSelect) {
+                this.options.onItemSelect(item);
+              }
+            },
+            onFocus: (item, cardEl) => this.handleCardFocus(item, cardEl),
+            onToggleWatchlist: async (item) => {
+              const isFav = Boolean(item?.UserData?.IsFavorite);
+              await toggleFavorite(item.Id, !isFav);
+              if (item.UserData) item.UserData.IsFavorite = !isFav;
+              const fresh = await getWatchlistItems(40).catch(() => []);
+              this.rowsData.set('watchlist', fresh);
+              this.renderRows(true);
+            },
+            onToggleWatched: async (item) => {
+              const isPlayed = Boolean(item?.UserData?.Played);
+              await setPlayed(item.Id, !isPlayed);
+              if (item.UserData) item.UserData.Played = !isPlayed;
+              this.renderRows(true);
+            },
+            onRemoveFromRow:
+              spec.id === 'continue_watching'
+                ? async (item) => {
+                    await clearResumePosition(item.Id);
+                    this.rowsData.set(
+                      'continue_watching',
+                      data.filter((i) => i.Id !== item.Id)
+                    );
+                    this.renderRows(true);
+                  }
+                : spec.id === 'next_up'
+                  ? async (item) => {
+                      if (item.SeriesId) {
+                        await hideSeriesFromNextUp(item.SeriesId);
+                      } else {
+                        await setPlayed(item.Id, true);
+                      }
+                      this.rowsData.set(
+                        'next_up',
+                        data.filter((i) => i.Id !== item.Id)
+                      );
+                      this.renderRows(true);
+                    }
+                  : null,
           }
-        };
-
-        track.appendChild(card);
-      });
-
-      rowSection.appendChild(track);
-      rowsContainer.appendChild(rowSection);
+        );
+        if (rowEl) rowsContainer.appendChild(rowEl);
+      } else {
+        // Fallback row builder if renderPosterRow isn't loaded yet
+        const sectionEl = document.createElement('section');
+        sectionEl.className = 'jellio-row-container';
+        sectionEl.innerHTML = `<h2 class="jellio-row-title">${spec.title}</h2>`;
+        const trackEl = document.createElement('div');
+        trackEl.className = 'jellio-row-track';
+        data.forEach((item) => {
+          const imgTag = item?.ImageTags?.Primary || item?.PrimaryImageTag;
+          const imgUrl = getImageUrl(item?.Id, imgTag, 'Primary', 300);
+          const cardEl = renderPosterCard(item, {
+            aspectRatio: CardAspectRatio.PORTRAIT,
+            imageUrl: imgUrl,
+            onSelect: (selected) => {
+              if (this.options.onItemSelect) this.options.onItemSelect(selected);
+            },
+          });
+          cardEl.addEventListener('focus', () => this.handleCardFocus(item, cardEl));
+          trackEl.appendChild(cardEl);
+        });
+        sectionEl.appendChild(trackEl);
+        rowsContainer.appendChild(sectionEl);
+      }
     });
+
+    if (prevFocusedId) {
+      const target = rowsContainer.querySelector(`[data-item-id="${prevFocusedId}"]`);
+      if (target) focusElement(target);
+    }
   }
 
-  moveRow(rowKey, delta) {
-    const savedOrder = HomeRowPreferences.getRowOrder();
-    const order = savedOrder.length > 0 ? [...savedOrder] : [...DEFAULT_ROW_KEYS];
-    const currentIndex = order.indexOf(rowKey);
-    if (currentIndex === -1) return;
+  moveRow(index, delta) {
+    const specs = this.getOrderedRowSpecs();
+    const targetIndex = index + delta;
+    if (targetIndex < 0 || targetIndex >= specs.length) return;
 
-    const newIndex = currentIndex + delta;
-    if (newIndex < 0 || newIndex >= order.length) return;
+    const ids = specs.map((s) => s.id);
+    const [moved] = ids.splice(index, 1);
+    ids.splice(targetIndex, 0, moved);
 
-    order.splice(currentIndex, 1);
-    order.splice(newIndex, 0, rowKey);
-
-    HomeRowPreferences.setRowOrder(order);
+    HomeRowPreferences.setRowOrder(ids);
     this.renderRows();
   }
 
-  toggleRowHidden(rowKey) {
-    const hidden = new Set(HomeRowPreferences.getHiddenRows());
-    if (hidden.has(rowKey)) {
-      hidden.delete(rowKey);
+  toggleRowVisibility(rowId) {
+    const hidden = new Set(HomeRowPreferences.getHiddenRows() || []);
+    if (hidden.has(rowId)) {
+      hidden.delete(rowId);
     } else {
-      hidden.add(rowKey);
+      hidden.add(rowId);
     }
     HomeRowPreferences.setHiddenRows(Array.from(hidden));
     this.renderRows();
   }
 
   destroy() {
+    this.isDestroyed = true;
+    this.stopWatchlistPolling();
+    if (this.showcase) {
+      this.showcase.destroy();
+      this.showcase = null;
+    }
+    if (this.topBar && typeof this.topBar.destroy === 'function') {
+      this.topBar.destroy();
+      this.topBar = null;
+    }
     this.rowsData.clear();
   }
 }

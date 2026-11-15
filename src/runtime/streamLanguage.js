@@ -29,3 +29,14 @@ export function orderByLanguage(sources, language, languagesOf) {
   if (matches.length || multi.length) return matches.concat(multi);
   return others;
 }
+
+export function selectStreamLanguage(sources, language) {
+  if (!Array.isArray(sources)) return [];
+  return orderByLanguage(sources, language, (src) => {
+    const streams = (src && src.MediaStreams) || [];
+    const audios = streams.filter((s) => s && s.Type === 'Audio');
+    if (audios.length === 0) return ['__multi__'];
+    return audios.map((a) => a.Language || '__multi__');
+  });
+}
+

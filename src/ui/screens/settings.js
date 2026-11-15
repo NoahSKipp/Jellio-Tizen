@@ -409,17 +409,26 @@ export class SettingsScreen {
     pane.innerHTML = `
       <h1 style="font-size: 28px; font-weight: 700;">Home Screen Customization</h1>
       <p style="font-size: 14px; color: var(--jellio-text-secondary); line-height: 1.5;">
-        You can reorder and hide individual home rows directly from the Home screen by clicking "Customize Home", or reset here.
+        Reorder and hide individual home rows directly on the Home screen, or reset to the default layout.
       </p>
-      <div>
-        <button class="jellio-btn jellio-btn-primary" data-focusable="true" id="btn-reset-home">Reset Home Rows to Default</button>
+      <div style="display: flex; gap: 14px; margin-top: 8px;">
+        <button class="jellio-btn jellio-btn-primary" data-focusable="true" id="btn-customize-home">Customize Home Rows</button>
+        <button class="jellio-btn" data-focusable="true" id="btn-reset-home">Reset Home Rows to Default</button>
       </div>
     `;
+
+    pane.querySelector('#btn-customize-home').onclick = () => {
+      if (this.options.onCustomizeHome) {
+        this.options.onCustomizeHome();
+      }
+    };
 
     pane.querySelector('#btn-reset-home').onclick = () => {
       HomeRowPreferences.setRowOrder([]);
       HomeRowPreferences.setHiddenRows([]);
-      alert('Home row layout reset to default.');
+      if (this.options.onToast) {
+        this.options.onToast('Home row layout reset to default.');
+      }
     };
   }
 
@@ -494,14 +503,14 @@ export class SettingsScreen {
     pane.querySelector('#btn-privacy-public').onclick = async () => {
       try {
         await setProfilePrivacy(false);
-        alert('Profile set to Public.');
+        if (this.options.onToast) this.options.onToast('Profile set to Public.');
       } catch (_) {}
     };
 
     pane.querySelector('#btn-privacy-private').onclick = async () => {
       try {
         await setProfilePrivacy(true);
-        alert('Profile set to Private.');
+        if (this.options.onToast) this.options.onToast('Profile set to Private.');
       } catch (_) {}
     };
   }
