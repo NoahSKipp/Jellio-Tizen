@@ -11,6 +11,26 @@ export function isBigRelease(version) {
 
 export const CHANGELOG_RELEASES = [
   {
+    version: '0.85.0',
+    title: 'What\'s New in Jellio Tizen',
+    subtitle: 'Version 0.85.0',
+    summary: 'Proactive stream warmup with Ready badges, smarter Top Picks recommendations, and typo-tolerant fuzzy search with Similar results.',
+    features: [
+      {
+        title: 'Expanded Stream Warmup & Ready Badge',
+        description: 'Streams warm up ahead of time across Home, detail pages, and backup sources, with a Ready badge shown in the stream picker.',
+      },
+      {
+        title: 'Smarter Personal Top Picks',
+        description: 'Top Picks uses weighted taste signals, recency decay, cast and director affinity, diversity caps, and deduplication across Home rows.',
+      },
+      {
+        title: 'Fuzzy Search & Similar Results',
+        description: 'Search handles typos and aliases cleanly with query suggestions and an always-on Similar results row.',
+      },
+    ],
+  },
+  {
     version: '0.84.0',
     title: 'What\'s New in Jellio TV',
     subtitle: 'Version 0.84.0',

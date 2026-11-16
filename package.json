@@ -1,6 +1,6 @@
 {
   "name": "jellio-tizen",
-  "version": "0.1.0",
+  "version": "0.85.0",
   "type": "module",
   "description": "Samsung Tizen Smart TV client for Jellio",
   "main": "src/main.js",

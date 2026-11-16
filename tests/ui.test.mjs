@@ -89,5 +89,5 @@ test('Changelog version helpers', () => {
   assert.equal(isBigRelease('1.1.1'), false);
   assert.equal(isBigRelease('0.43.2'), false);
   assert.equal(Array.isArray(CHANGELOG_RELEASES), true);
-  assert.equal(CURRENT_CHANGELOG.version, '0.84.0');
+  assert.equal(CURRENT_CHANGELOG.version, '0.85.0');
 });
