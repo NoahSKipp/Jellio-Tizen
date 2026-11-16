@@ -18,7 +18,7 @@ export const SHOWCASE_FIELDS = 'Overview,Genres,ProductionYear,RunTimeTicks,Prem
 
 const CLIENT_NAME = 'Jellio Tizen';
 const DEVICE_NAME = 'Samsung Smart TV';
-const APP_VERSION = '0.1.0';
+const APP_VERSION = '0.85.0';
 
 export class TtlCache {
   constructor() {
@@ -573,16 +573,81 @@ export function getPerson(personId) {
 export async function getRecentlyCompleted(limit = 20) {
   const session = getSession();
   const targetId = session ? session.userId : '';
-  const params = new URLSearchParams({
+
+  const movieParams = new URLSearchParams({
     Filters: 'IsPlayed',
     SortBy: 'DatePlayed',
     SortOrder: 'Descending',
     Limit: String(limit),
     Fields: ITEM_FIELDS,
     Recursive: 'true',
+    IncludeItemTypes: 'Movie',
   });
-  const res = await getJson(`/Users/${targetId}/Items?` + params.toString());
-  return (res && res.Items) || [];
+
+  const episodeParams = new URLSearchParams({
+    IncludeItemTypes: 'Episode',
+    Filters: 'IsPlayed',
+    SortBy: 'DatePlayed',
+    SortOrder: 'Descending',
+    Limit: '30',
+    Fields: 'SeriesId,UserData,DatePlayed',
+    Recursive: 'true',
+  });
+
+  const [movieRes, epRes] = await Promise.all([
+    getJson(`/Users/${targetId}/Items?` + movieParams.toString()).catch(() => ({ Items: [] })),
+    getJson(`/Users/${targetId}/Items?` + episodeParams.toString()).catch(() => ({ Items: [] })),
+  ]);
+
+  const movies = (movieRes && movieRes.Items) || [];
+  const episodes = (epRes && epRes.Items) || [];
+
+  const seriesEpisodeCounts = new Map();
+  const seriesLastPlayed = new Map();
+
+  for (const ep of episodes) {
+    const sId = ep.SeriesId;
+    if (!sId) continue;
+    seriesEpisodeCounts.set(sId, (seriesEpisodeCounts.get(sId) || 0) + 1);
+    const datePlayed = ep.UserData?.LastPlayedDate || ep.DatePlayed || null;
+    if (datePlayed) {
+      const prevDate = seriesLastPlayed.get(sId);
+      if (!prevDate || new Date(datePlayed) > new Date(prevDate)) {
+        seriesLastPlayed.set(sId, datePlayed);
+      }
+    }
+  }
+
+  const seriesIds = Array.from(seriesEpisodeCounts.keys());
+  let seriesItems = [];
+  if (seriesIds.length > 0) {
+    try {
+      const fetched = await getItemsByIds(seriesIds, ITEM_FIELDS);
+      seriesItems = (fetched || []).map((s) => {
+        const bingeCount = seriesEpisodeCounts.get(s.Id) || 1;
+        const lastPlayed = seriesLastPlayed.get(s.Id);
+        const copy = Object.assign({}, s);
+        copy._bingeEpisodeCount = bingeCount;
+        if (lastPlayed) {
+          if (!copy.UserData) copy.UserData = {};
+          copy.UserData.LastPlayedDate = lastPlayed;
+        }
+        return copy;
+      });
+    } catch (_) {}
+  }
+
+  const combined = [...movies, ...seriesItems];
+  combined.sort((a, b) => {
+    const dateA = a.UserData?.LastPlayedDate || a.DatePlayed || '';
+    const dateB = b.UserData?.LastPlayedDate || b.DatePlayed || '';
+    if (!dateA && !dateB) return 0;
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+    return new Date(dateB).getTime() - new Date(dateA).getTime();
+  });
+
+  return combined.slice(0, limit);
 }
 
 export async function getRecommendationCandidates(seed, limit = 12) {
@@ -658,9 +723,54 @@ export function searchSeries(term) {
   return getJson('/gelato/search/series?q=' + encodeURIComponent(term), SEARCH_TIMEOUT_MS).catch(() => []);
 }
 
-export function getSearchSuggestions(query) {
-  return getJson('/Jellio/search/suggestions?q=' + encodeURIComponent(query)).catch(() => ({
+export async function getTopPicksRecommendations(limit = 20) {
+  try {
+    const res = await getJson(`/Jellio/recommendations/top-picks?limit=${limit}&enableVirtual=true`);
+    if (Array.isArray(res)) return res;
+    if (res && Array.isArray(res.Items)) return res.Items;
+  } catch (_) {}
+  return [];
+}
+
+export async function searchFuzzy(term, limit = 24) {
+  const session = getSession();
+  const userId = session ? session.userId : '';
+  if (!term) return { items: [], correctedQuery: null, confidence: 0 };
+  const params = new URLSearchParams({
+    query: term,
+    limit: String(limit),
+  });
+  if (userId) params.set('userId', userId);
+  try {
+    const result = await getJson('/Jellio/search/fuzzy?' + params.toString(), SEARCH_TIMEOUT_MS);
+    if (!result) return { items: [], correctedQuery: null, confidence: 0 };
+    return {
+      items: result.Items || result.items || [],
+      correctedQuery: result.CorrectedQuery || result.correctedQuery || null,
+      confidence: Number(result.Confidence != null ? result.Confidence : result.confidence) || 0,
+    };
+  } catch (_) {
+    return { items: [], correctedQuery: null, confidence: 0 };
+  }
+}
+
+export function getSearchSuggestions(query, options = {}) {
+  const params = new URLSearchParams({
+    query: query || '',
+    enableVirtual: options.enableVirtual === false ? 'false' : 'true',
+  });
+  if (options.tmdbId) params.set('tmdbId', String(options.tmdbId));
+  if (options.mediaType) params.set('mediaType', String(options.mediaType));
+  const session = getSession();
+  const userId = options.userId || (session ? session.userId : '');
+  if (userId) params.set('userId', userId);
+  if (Array.isArray(options.excludeIds) && options.excludeIds.length) {
+    params.set('excludeIds', options.excludeIds.join(','));
+  }
+  return getJson('/Jellio/search/suggestions?' + params.toString()).catch(() => ({
     Suggestions: [],
+    MatchedTitle: null,
+    Rows: [],
   }));
 }
 
@@ -711,6 +821,8 @@ export function setItemRating(itemId, likes) {
   const session = getSession();
   const targetId = session ? session.userId : '';
   apiCache.invalidatePrefix('item:' + itemId);
+  apiCache.invalidatePrefix('rec:');
+  apiCache.invalidatePrefix('recommendations:');
   if (likes == null) {
     return deleteJson(`/Users/${targetId}/Items/${itemId}/Rating`);
   }
@@ -773,7 +885,13 @@ export async function getPlaybackInfo(itemId, startTicks = 0, mediaSourceId = nu
   if (audioStreamIndex != null) body.AudioStreamIndex = audioStreamIndex;
   if (subtitleStreamIndex != null) body.SubtitleStreamIndex = subtitleStreamIndex;
 
-  return postJson(`/Items/${itemId}/PlaybackInfo`, body, NEGOTIATION_TIMEOUT_MS);
+  const info = await postJson(`/Items/${itemId}/PlaybackInfo`, body, NEGOTIATION_TIMEOUT_MS);
+  if (mediaSourceId) {
+    markLocalSourceWarm(itemId, mediaSourceId);
+  } else if (info && Array.isArray(info.MediaSources) && info.MediaSources[0]?.Id) {
+    markLocalSourceWarm(itemId, info.MediaSources[0].Id);
+  }
+  return info;
 }
 
 export async function getMediaSources(itemId, reason = 'play', forceFresh = false) {
@@ -788,15 +906,104 @@ export async function getMediaSources(itemId, reason = 'play', forceFresh = fals
   return sources;
 }
 
-export function getWarmSources(itemId) {
-  return getJson(`/gelato/warm/${itemId}`).catch(() => null);
+export const PREFETCH_WINDOW_MS = 8 * 60 * 1000;
+const prefetchWindowMap = new Map();
+const localWarmedSourcesMap = new Map();
+
+export function normalizeSourceId(id) {
+  return String(id || '').replace(/-/g, '').toLowerCase();
+}
+
+export function markLocalSourceWarm(itemId, mediaSourceId) {
+  if (!itemId || !mediaSourceId) return;
+  const itemKey = String(itemId);
+  const srcKey = normalizeSourceId(mediaSourceId);
+  if (!srcKey) return;
+  let perItem = localWarmedSourcesMap.get(itemKey);
+  if (!perItem) {
+    perItem = new Set();
+    localWarmedSourcesMap.set(itemKey, perItem);
+  }
+  perItem.add(srcKey);
+}
+
+export function getLocalWarmedSources(itemId) {
+  const perItem = localWarmedSourcesMap.get(String(itemId));
+  if (!perItem || !perItem.size) return null;
+  const result = {};
+  for (const srcKey of perItem) {
+    result[srcKey] = true;
+  }
+  return result;
+}
+
+export async function warmFirstBytes(streamUrl) {
+  if (!streamUrl || typeof fetch !== 'function') return;
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timeoutId = typeof setTimeout === 'function'
+    ? setTimeout(() => { if (controller) controller.abort(); }, 4000)
+    : null;
+  try {
+    const response = await fetch(streamUrl, {
+      method: 'GET',
+      headers: { Range: 'bytes=0-262143' },
+      signal: controller ? controller.signal : undefined,
+    });
+    if (response && response.body && typeof response.body.cancel === 'function') {
+      response.body.cancel().catch(() => {});
+    }
+  } catch (_) {
+  } finally {
+    if (timeoutId != null && typeof clearTimeout === 'function') {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
+export function warmSecondSource(itemId, sources) {
+  if (!itemId || !Array.isArray(sources) || sources.length < 2) return null;
+  const timer = setTimeout(async () => {
+    try {
+      const second = sources[1];
+      if (second && second.Id) {
+        await getPlaybackInfo(itemId, 0, second.Id);
+      }
+    } catch (_) {}
+  }, 1500);
+  return timer;
+}
+
+export async function getWarmSources(itemId, { forceFresh = false } = {}) {
+  let server = null;
+  try {
+    const res = await getJson(`/gelato/warm/${itemId}`);
+    server = res && typeof res === 'object' ? res : null;
+  } catch (_) {}
+
+  const local = getLocalWarmedSources(itemId) || {};
+  if (!server && Object.keys(local).length === 0) return null;
+
+  const merged = Object.assign({}, local);
+  if (server) {
+    for (const [key, val] of Object.entries(server)) {
+      merged[normalizeSourceId(key)] = val;
+    }
+  }
+  return merged;
 }
 
 export function getQualityTiers(itemId) {
   return getJson(`/gelato/tiers/${itemId}`).catch(() => ({}));
 }
 
-export function prefetchStreams(itemId) {
+export function prefetchStreams(itemId, options = {}) {
+  if (!itemId) return Promise.resolve();
+  const now = Date.now();
+  const lastPrefetch = prefetchWindowMap.get(itemId);
+  if (!options.forceFresh && lastPrefetch && (now - lastPrefetch) < PREFETCH_WINDOW_MS) {
+    return Promise.resolve();
+  }
+  prefetchWindowMap.set(itemId, now);
   return postJson(`/gelato/prefetch/${itemId}`).catch(() => {});
 }
 

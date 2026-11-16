@@ -1,6 +1,24 @@
 // StreamPickerOverlay modal matching StreamPickerOverlay.kt.
 import { pushFocusTrap, popFocusTrap } from '../../input/spatialNav.js';
 import { PlayerPrefs } from '../../data/prefs.js';
+import { normalizeSourceId } from '../../data/api.js';
+import { t } from '../../runtime/i18n.js';
+
+export function isSourceReady(source, readyInfo) {
+  if (!source || !source.Id || !readyInfo) return false;
+  const normId = normalizeSourceId(source.Id);
+  if (readyInfo instanceof Set) {
+    return readyInfo.has(normId);
+  }
+  if (typeof readyInfo === 'object') {
+    return Boolean(
+      readyInfo[normId] ||
+      readyInfo[source.Id] ||
+      (Array.isArray(readyInfo) && readyInfo.some((r) => normalizeSourceId(r) === normId))
+    );
+  }
+  return false;
+}
 
 export function sourceResolutionLabel(source) {
   if (!source || !source.MediaStreams) return '';
@@ -41,6 +59,7 @@ export class StreamPickerOverlay {
     this.container.setAttribute('data-focus-group', 'stream-picker');
 
     const rememberedId = this.item ? PlayerPrefs.getRememberedSourceId(this.item.Id) : null;
+    const readyLabel = '\u26A1 ' + (t('stream_ready') || 'Ready');
 
     let sourcesHtml = '';
     for (const source of this.sources) {
@@ -49,6 +68,7 @@ export class StreamPickerOverlay {
       const bitrate = sourceBitrateLabel(source);
       const isRemembered = rememberedId && rememberedId === source.Id;
       const isDirectPlay = Boolean(source.SupportsDirectPlay !== false);
+      const ready = isSourceReady(source, this.readyInfo);
 
       sourcesHtml += `
         <div class="jellio-stream-option-card" data-focusable="true" data-action="pick-stream" data-source-id="${source.Id}" style="background: rgba(255,255,255,0.06); padding: 14px 18px; border-radius: 12px; margin-bottom: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
@@ -61,6 +81,7 @@ export class StreamPickerOverlay {
             </div>
           </div>
           <div style="display: flex; gap: 8px; align-items: center;">
+            ${ready ? `<span class="jellio-stream-ready-badge" style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(102, 187, 106, 0.18); color: #81C784; font-weight: 600;">${readyLabel}</span>` : ''}
             ${isDirectPlay ? '<span style="font-size: 11px; padding: 2px 8px; border-radius: 6px; background: rgba(34,197,94,0.2); color: #22c55e;">DirectPlay</span>' : '<span style="font-size: 11px; padding: 2px 8px; border-radius: 6px; background: rgba(239,68,68,0.2); color: #ef4444;">Transcode</span>'}
             ${isRemembered ? '<span style="font-size: 11px; padding: 2px 8px; border-radius: 6px; background: rgba(255,152,0,0.2); color: #ff9800;">Default</span>' : ''}
           </div>

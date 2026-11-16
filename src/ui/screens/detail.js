@@ -8,6 +8,9 @@ import {
   getSeasons,
   getEpisodes,
   getSeriesNextUp,
+  getMediaSources,
+  prefetchStreams,
+  warmSecondSource,
   toggleFavorite,
   setPlayed,
   setItemRating,
@@ -174,6 +177,14 @@ export class DetailScreen {
 
       if (details.Type === 'Series') {
         await this.loadSeasonsAndEpisodes();
+      }
+
+      // Warm target episode / item streams
+      const targetWarmItem = details.Type === 'Series'
+        ? (this.nextUpEpisode || this.episodes[0])
+        : details;
+      if (targetWarmItem && targetWarmItem.Id) {
+        this.warmItemStream(targetWarmItem.Id);
       }
 
       if (details.People && details.People.length > 0) {
@@ -405,6 +416,10 @@ export class DetailScreen {
           Array.from(seasonsTrack.children).forEach((c) => c.classList.remove('jellio-btn-primary'));
           btn.classList.add('jellio-btn-primary');
           await this.loadEpisodes(season.Id);
+          const firstUnwatched = this.episodes.find((ep) => !ep.UserData?.Played) || this.episodes[0];
+          if (firstUnwatched && firstUnwatched.Id) {
+            this.warmItemStream(firstUnwatched.Id);
+          }
         };
 
         seasonsTrack.appendChild(btn);
@@ -416,6 +431,19 @@ export class DetailScreen {
     } catch (err) {
       console.warn('DetailScreen: failed loading seasons', err);
     }
+  }
+
+  warmItemStream(targetId) {
+    if (!targetId) return;
+    if (this.secondSourceTimer) {
+      clearTimeout(this.secondSourceTimer);
+      this.secondSourceTimer = null;
+    }
+    prefetchStreams(targetId);
+    getMediaSources(targetId).then((sources) => {
+      if (this.isDestroyed || !sources || sources.length < 2) return;
+      this.secondSourceTimer = warmSecondSource(targetId, sources);
+    }).catch(() => {});
   }
 
   async loadEpisodes(seasonId) {
@@ -528,6 +556,10 @@ export class DetailScreen {
 
   destroy() {
     this.isDestroyed = true;
+    if (this.secondSourceTimer) {
+      clearTimeout(this.secondSourceTimer);
+      this.secondSourceTimer = null;
+    }
     this.item = null;
     this.seasons = [];
     this.episodes = [];

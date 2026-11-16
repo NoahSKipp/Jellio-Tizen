@@ -7,7 +7,10 @@
 import {
   getResumeItems,
   getNextUp,
+  getSeriesNextUp,
   getWatchlistItems,
+  getRecentlyCompleted,
+  getTopPicksRecommendations,
   getHeroCandidates,
   getSeasonalItems,
   getCalendarEntries,
@@ -15,6 +18,7 @@ import {
   getLibraryItems,
   discoverGenres,
   getGenreItems,
+  prefetchStreams,
   toggleFavorite,
   setPlayed,
   clearResumePosition,
@@ -24,6 +28,7 @@ import {
   getUserImageUrl,
   getServiceLogoUrl,
 } from '../../data/api.js';
+import { buildRecommendationRows } from '../../runtime/recommendations.js';
 import { getSession } from '../../data/session.js';
 import { HomeRowPreferences } from '../../data/prefs.js';
 import { ShowcaseHost } from '../components/showcase.js';
@@ -54,6 +59,7 @@ export const STREAMING_SERVICES = [
 export const DEFAULT_HOME_ROW_SPECS = [
   { id: 'continue_watching', title: 'Continue Watching', aspectRatio: CardAspectRatio.PORTRAIT, progress: true },
   { id: 'next_up', title: 'Next Up', aspectRatio: CardAspectRatio.PORTRAIT, progress: true },
+  { id: 'top_picks', title: 'Top Picks for You', aspectRatio: CardAspectRatio.PORTRAIT },
   { id: 'watchlist', title: 'Watchlist', aspectRatio: CardAspectRatio.PORTRAIT },
   { id: 'studio_hubs', title: 'Streaming Services', isStudioHub: true },
   { id: 'coming_soon', title: 'Coming Soon', isComingSoon: true },
@@ -74,6 +80,8 @@ export class HomeScreen {
     this.topBar = null;
     this.rowsData = new Map();
     this.dynamicGenreSpecs = [];
+    this.dynamicRecSpecs = [];
+    this.seriesNextUpCache = new Map();
     this.isEditMode = Boolean(options.editMode);
     this.watchlistPollTimer = null;
     this.isDestroyed = false;
@@ -155,7 +163,7 @@ export class HomeScreen {
   }
 
   getAllSpecs() {
-    return [...DEFAULT_HOME_ROW_SPECS, ...this.dynamicGenreSpecs];
+    return [...DEFAULT_HOME_ROW_SPECS, ...this.dynamicRecSpecs, ...this.dynamicGenreSpecs];
   }
 
   getOrderedRowSpecs() {
@@ -198,6 +206,8 @@ export class HomeScreen {
         topRatedRes,
         seasonal,
         genres,
+        recentlyCompleted,
+        backendTopPicks,
       ] = await Promise.all([
         getResumeItems(20).catch(() => []),
         getNextUp(20).catch(() => []),
@@ -224,6 +234,8 @@ export class HomeScreen {
         }).catch(() => ({ Items: [] })),
         getSeasonalItems(20).catch(() => []),
         discoverGenres(userId, null, 'Movie,Series', 4).catch(() => []),
+        getRecentlyCompleted(30).catch(() => []),
+        getTopPicksRecommendations(20).catch(() => []),
       ]);
 
       if (this.isDestroyed) return;
@@ -238,6 +250,43 @@ export class HomeScreen {
       this.rowsData.set('trending_series', (trendingSeriesRes && trendingSeriesRes.Items) || []);
       this.rowsData.set('top_rated', (topRatedRes && topRatedRes.Items) || []);
       this.rowsData.set('seasonal', seasonal || []);
+
+      // Stream Warmup: Warm both continueWatching and top 4 upNext episodes
+      this.warmPrimaryRows(resume || [], nextUp || []);
+
+      // Build recommendations: Compute "Top Picks for You" FIRST before "Because you watched" rows consume items
+      const candidatePool = [
+        ...(trendingMoviesRes?.Items || []),
+        ...(trendingSeriesRes?.Items || []),
+        ...(topRatedRes?.Items || []),
+        ...(seasonal || []),
+      ];
+
+      const excludeIds = new Set();
+      (resume || []).forEach((i) => i?.Id && excludeIds.add(i.Id));
+      (nextUp || []).forEach((i) => i?.Id && excludeIds.add(i.Id));
+
+      const { topPicks, becauseYouWatchedRows } = buildRecommendationRows({
+        seeds: recentlyCompleted || [],
+        candidatePool,
+        backendTopPicks: backendTopPicks || [],
+        excludeIds,
+        maxTopPicks: 20,
+        maxPerRow: 15,
+        maxSeedRows: 4,
+      });
+
+      this.rowsData.set('top_picks', topPicks || []);
+
+      this.dynamicRecSpecs = [];
+      for (const recRow of becauseYouWatchedRows || []) {
+        this.dynamicRecSpecs.push({
+          id: recRow.id,
+          title: recRow.title,
+          aspectRatio: CardAspectRatio.PORTRAIT,
+        });
+        this.rowsData.set(recRow.id, recRow.items || []);
+      }
 
       // Load top 4 genre rows
       this.dynamicGenreSpecs = [];
@@ -313,7 +362,20 @@ export class HomeScreen {
     }
   }
 
-  handleCardFocus(item, cardEl) {
+  warmPrimaryRows(continueWatching = [], upNext = []) {
+    for (const item of continueWatching) {
+      if (item && item.Id) {
+        prefetchStreams(item.Id);
+      }
+    }
+    for (const item of upNext.slice(0, 4)) {
+      if (item && item.Id) {
+        prefetchStreams(item.Id);
+      }
+    }
+  }
+
+  async handleCardFocus(item, cardEl) {
     if (this.showcase && item) {
       this.showcase.setHighlightedItem(item);
     }
@@ -326,6 +388,27 @@ export class HomeScreen {
         viewport.scrollTo({ top: targetTop, behavior: 'smooth' });
       } else {
         viewport.scrollTop = targetTop;
+      }
+    }
+
+    // When focusing a Series card for prefetch, resolve its next-up episode ID (cached in a Map) instead of sending Series ID
+    if (item && item.Id) {
+      if (item.Type === 'Series') {
+        let epId = this.seriesNextUpCache.get(item.Id);
+        if (!epId) {
+          try {
+            const nextEp = await getSeriesNextUp(item.Id);
+            if (nextEp && nextEp.Id) {
+              epId = nextEp.Id;
+              this.seriesNextUpCache.set(item.Id, epId);
+            }
+          } catch (_) {}
+        }
+        if (epId) {
+          prefetchStreams(epId);
+        }
+      } else {
+        prefetchStreams(item.Id);
       }
     }
   }

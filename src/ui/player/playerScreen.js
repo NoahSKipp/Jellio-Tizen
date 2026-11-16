@@ -10,6 +10,9 @@ import {
   getEpisodes,
   getSeasons,
   getPlaybackInfo,
+  getMediaSources,
+  prefetchStreams,
+  warmSecondSource,
   buildStreamUrl,
   reportPlaybackStart,
   reportPlaybackProgress,
@@ -66,6 +69,9 @@ export class PlayerScreen {
     this.lastReportedTicks = 0;
     this.realWatchCredited = false;
     this.realDurationReported = false;
+    this.nextEpWarmed = false;
+    this.ttlRefreshed = false;
+    this.nextSecondSourceTimer = null;
 
     this.triedSourceIds = new Set();
     this.playbackSessionId = null;
@@ -280,6 +286,33 @@ export class PlayerScreen {
       if (durationSec > 0 && !this.realDurationReported) {
         this.realDurationReported = true;
         reportRealDuration(this.itemId, durationMs * TICKS_PER_MS);
+      }
+
+      // At 70% playback progress, call prefetchStreams(currentItemId) to refresh TTL before end of long items
+      if (durationSec > 0 && !this.ttlRefreshed && (currentSec / durationSec >= 0.70)) {
+        this.ttlRefreshed = true;
+        prefetchStreams(this.itemId);
+      }
+
+      // Pre-warm next episode earlier: at Math.min(creditsStart > 0 ? creditsStart - 25 : Infinity, durationSec - 60)
+      if (this.nextEpisode && !this.nextEpWarmed && durationSec > 60) {
+        const creditsStart = (this.skipSegments && this.skipSegments.Credits && this.skipSegments.Credits.Start > 0)
+          ? this.skipSegments.Credits.Start
+          : 0;
+        const warmupTriggerSec = Math.min(
+          creditsStart > 0 ? creditsStart - 25 : Infinity,
+          durationSec - 60
+        );
+        if (currentSec >= warmupTriggerSec) {
+          this.nextEpWarmed = true;
+          const nextId = this.nextEpisode.Id;
+          prefetchStreams(nextId);
+          getMediaSources(nextId).then((sources) => {
+            if (sources && sources.length >= 2) {
+              this.nextSecondSourceTimer = warmSecondSource(nextId, sources);
+            }
+          }).catch(() => {});
+        }
       }
     });
 
@@ -570,6 +603,10 @@ export class PlayerScreen {
 
   destroy() {
     this.stopProgressReporting();
+    if (this.nextSecondSourceTimer) {
+      clearTimeout(this.nextSecondSourceTimer);
+      this.nextSecondSourceTimer = null;
+    }
     if (this.syncPlayUnsubscribe) {
       this.syncPlayUnsubscribe();
       this.syncPlayUnsubscribe = null;

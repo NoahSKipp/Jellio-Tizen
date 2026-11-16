@@ -21,6 +21,7 @@ import {
   getLibraryNavEntries,
   getUserImageUrl,
   getPlaybackInfo,
+  getWarmSources,
   searchItems,
   updateLanguagePreferences,
 } from './data/api.js';
@@ -512,11 +513,15 @@ class JellioTizenApp {
   async openStreamPicker(item) {
     if (!item || !item.Id) return;
     try {
-      const playbackInfo = await getPlaybackInfo(item.Id);
+      const [playbackInfo, warmSources] = await Promise.all([
+        getPlaybackInfo(item.Id).catch(() => null),
+        getWarmSources(item.Id).catch(() => null),
+      ]);
       const sources = (playbackInfo && playbackInfo.MediaSources) || item.MediaSources || [];
       const picker = new StreamPickerOverlay({
         item,
         sources,
+        readyInfo: warmSources,
         onSelect: (selectedSource) => {
           this.playItem(item, {
             mediaSourceId: selectedSource ? selectedSource.Id : null,

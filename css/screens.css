@@ -258,6 +258,25 @@
   font-size: 18px;
 }
 
+.jellio-search-correction-banner {
+  color: var(--jellio-text-secondary);
+  font-size: 15px;
+  margin: 4px 52px 14px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.jellio-search-correction-query {
+  color: #ffffff;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.jellio-search-suggestion-section {
+  margin-top: 18px;
+}
+
 .jellio-onscreen-keyboard {
   display: flex;
   flex-direction: column;
